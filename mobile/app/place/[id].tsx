@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,12 @@ import {
   Image,
   Linking,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { getPlace } from "../../api/api";
 
 /* =========================================================
    COLORS
@@ -80,80 +82,6 @@ type PlaceDetail = {
 };
 
 /* =========================================================
-   MOCK DATA
-   -----------------------------------------------
-   ภายหลังสามารถเปลี่ยนเป็น API ได้
-========================================================= */
-
-const MOCK_PLACE_DETAIL: PlaceDetail = {
-  placeId: "central-library",
-
-  name: "Central Library",
-
-  category: "Building",
-
-  image: require("../../assets/images/central-library.jpg"),
-
-  description:
-    "The Central Library is a convenient place for students to study, borrow books, use computers and access various learning resources.",
-
-  openingHours: {
-    open: "08:00 AM",
-    close: "08:00 PM",
-  },
-
-  latitude: 16.4419,
-  longitude: 102.8359,
-
-  shuttleRoutes: [
-    {
-      id: "blue",
-      name: "Blue Line",
-      color: "#4B8FD8",
-    },
-    {
-      id: "orange",
-      name: "Orange Line",
-      color: "#FA7C35",
-    },
-  ],
-
-  nearbyPlaces: [
-    {
-      placeId: "food-court",
-      name: "KKU Food Court",
-      category: "Restaurant",
-      distance: "120 m",
-      image: require("../../assets/images/food-court.jpg"),
-    },
-
-    {
-      placeId: "coffee-shop",
-      name: "Library Coffee",
-      category: "Cafe",
-      distance: "180 m",
-      image: require("../../assets/images/coffee-shop.jpg"),
-    },
-
-    {
-      placeId: "sc-building",
-      name: "Science Building",
-      category: "Building",
-      distance: "350 m",
-      image: require("../../assets/images/science-building.jpg"),
-    },
-
-    {
-      placeId: "student-center",
-      name: "Student Center",
-      category: "Building",
-      distance: "500 m",
-      image: require("../../assets/images/student-center.jpg"),
-    },
-  ],
-};
-
-/* =========================================================
    PLACE DETAIL SCREEN
 ========================================================= */
 
@@ -177,38 +105,19 @@ export default function PlaceDetailScreen() {
       try {
         setLoading(true);
 
-        /*
-          ===================================================
-          BACKEND VERSION
-          ===================================================
-
-          const response = await fetch(
-            `${API_URL}/places/${id}`
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              "Failed to fetch place"
-            );
-          }
-
-          const data =
-            await response.json();
-
-          setPlace(data);
-
-          ===================================================
-        */
-
-        /*
-         * MOCK DATA
-         */
-
-        await new Promise((resolve) =>
-          setTimeout(resolve, 300)
-        );
-
-        setPlace(MOCK_PLACE_DETAIL);
+        const data = await getPlace(id);
+        setPlace({
+          placeId: String(data.placeId),
+          name: data.name,
+          category: data.category,
+          description: data.description ?? "No description available.",
+          image: { uri: "https://placehold.co/1200x800/EFF3F6/344054?text=KKU+Place" },
+          openingHours: { open: "Not specified", close: "" },
+          latitude: data.latitude === null ? Number.NaN : Number(data.latitude),
+          longitude: data.longitude === null ? Number.NaN : Number(data.longitude),
+          shuttleRoutes: [],
+          nearbyPlaces: [],
+        });
       } catch (error) {
         console.error(
           "Failed to load place:",
@@ -230,6 +139,11 @@ export default function PlaceDetailScreen() {
 
   const openGoogleMaps = () => {
     if (!place) return;
+
+    if (!Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) {
+      Alert.alert("Location unavailable", "This place does not have coordinates yet.");
+      return;
+    }
 
     const url =
       `https://www.google.com/maps/dir/?api=1` +

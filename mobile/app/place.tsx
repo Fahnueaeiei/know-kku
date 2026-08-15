@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
+import { getPlaces } from "../api/api";
 import PlaceCard from "../components/PlaceCard";
 
 /* =========================================================
@@ -50,44 +51,6 @@ const COLORS = {
   favorite: "#E63946",
 };
 
-const MOCK_PLACES = [
-  {
-    placeId: "1",
-    name: "Central Library",
-    category: "Building",
-    description: "หอสมุดกลาง มหาวิทยาลัยขอนแก่น แหล่งรวมหนังสือและพื้นที่สำหรับอ่านหนังสือ",
-    image:
-      "https://images.unsplash.com/photo-1568667256549-094345857637",
-    favorite: true,
-  },
-  {
-    placeId: "2",
-    name: "College of Computing",
-    category: "Building",
-    description: "อาคารวิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น",
-    image:
-      "https://images.unsplash.com/photo-1562774053-701939374585",
-    favorite: false,
-  },
-  {
-    placeId: "3",
-    name: "KKU Food Court",
-    category: "Restaurant",
-    description: "ศูนย์อาหารภายในมหาวิทยาลัย มีร้านอาหารหลากหลายให้เลือก",
-    image:
-      "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f",
-    favorite: true,
-  },
-  {
-    placeId: "4",
-    name: "Class Cafe",
-    category: "Cafe",
-    description: "คาเฟ่สำหรับนั่งพักผ่อนและอ่านหนังสือ เหมาะสำหรับนักศึกษา",
-    image:
-      "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb",
-    favorite: false,
-  },
-];
 /* =========================================================
    PLACE SCREEN
 ========================================================= */
@@ -117,13 +80,20 @@ export default function PlaceScreen() {
   ======================================================= */
 
   useEffect(() => {
-    setLoading(true);
+    const loadPlaces = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        setPlaces(await getPlaces());
+      } catch (error) {
+        console.error("Failed to load places:", error);
+        setError("Unable to load places.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // จำลองข้อมูลจาก Backend
-    setTimeout(() => {
-      setPlaces(MOCK_PLACES);
-      setLoading(false);
-    }, 500);
+    loadPlaces();
   }, []);
 
   /* =======================================================

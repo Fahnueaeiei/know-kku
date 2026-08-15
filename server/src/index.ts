@@ -1,10 +1,18 @@
 import express from "express";
 import "dotenv/config";
 import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
+import type { Request, Response, NextFunction } from "express";
 import { db } from "./db/index.js";
-import { places, checklist, users, events, posts } from "./db/schema.js";
+import { places, checklist, users, events, posts, eventParticipants } from "./db/schema.js";
 import { eq, and } from "drizzle-orm";
 
+function requireAuthJson(req: Request, res: Response, next: NextFunction) {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
 const app = express();
 app.use(express.json());
 app.use(clerkMiddleware()); // ทำให้ req.auth ใช้งานได้ทุก route (ไม่บังคับ login)
@@ -102,6 +110,23 @@ app.get("/events/:id", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch event" });
+  }
+});
+
+app.post("/events", async (req, res) => {
+  try {
+    const { title, category, description, location, eventDate, capacity, externalLink } = req.body;
+    if (!title || !eventDate) {
+      return res.status(400).json({ error: "title and eventDate are required" });
+    }
+    const [newEvent] = await db
+      .insert(events)
+      .values({ title, category, description, location, eventDate: new Date(eventDate), capacity, externalLink })
+      .returning();
+    res.status(201).json(newEvent);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create event" });
   }
 });
 

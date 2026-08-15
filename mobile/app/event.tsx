@@ -14,6 +14,7 @@ import {
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import { getEvents } from "../api/api";
 import EventCard from "../components/EventCard";
 
 /* =========================================================
@@ -67,78 +68,6 @@ const COLORS = {
 };
 
 /* =========================================================
-   MOCK DATA
-   -----------------------------------------------
-   ใช้สำหรับดู UI ก่อน Backend พร้อม
-========================================================= */
-
-const MOCK_EVENTS: Event[] = [
-  {
-    eventId: "1",
-    title: "KKU Freshmen Orientation 2026",
-    category: "University",
-    description:
-      "กิจกรรมปฐมนิเทศนักศึกษาใหม่ มหาวิทยาลัยขอนแก่น",
-    image:
-      "https://images.unsplash.com/photo-1523050854058-8df90110c9f1",
-    date: "20 Aug 2026",
-    startTime: "09:00",
-    endTime: "12:00",
-    location: "Khon Kaen University",
-    sourceUrl: "https://www.kku.ac.th/",
-    favorite: true,
-  },
-
-  {
-    eventId: "2",
-    title: "AI & Future Technology Workshop",
-    category: "Workshop",
-    description:
-      "Workshop เรียนรู้เทคโนโลยี AI และแนวโน้มของเทคโนโลยีในอนาคต",
-    image:
-      "https://images.unsplash.com/photo-1485827404703-89b55fcc595e",
-    date: "24 Aug 2026",
-    startTime: "13:00",
-    endTime: "16:00",
-    location: "College of Computing",
-    sourceUrl: "https://computing.kku.ac.th/",
-    favorite: false,
-  },
-
-  {
-    eventId: "3",
-    title: "KKU Startup Pitching Day",
-    category: "Competition",
-    description:
-      "การแข่งขันนำเสนอแนวคิด Startup สำหรับนักศึกษา",
-    image:
-      "https://images.unsplash.com/photo-1556761175-b413da4baf72",
-    date: "28 Aug 2026",
-    startTime: "09:30",
-    endTime: "17:00",
-    location: "Science Park KKU",
-    sourceUrl: "https://www.kku.ac.th/",
-    favorite: false,
-  },
-
-  {
-    eventId: "4",
-    title: "Student Club Fair 2026",
-    category: "Student Activity",
-    description:
-      "เปิดโอกาสให้นักศึกษาเลือกชมรมและกิจกรรมที่สนใจ",
-    image:
-      "https://images.unsplash.com/photo-1511632765486-a01980e01a18",
-    date: "2 Sep 2026",
-    startTime: "10:00",
-    endTime: "16:00",
-    location: "Srinagarind Exhibition Hall",
-    sourceUrl: "https://www.kku.ac.th/",
-    favorite: true,
-  },
-];
-
-/* =========================================================
    EVENT SCREEN
 ========================================================= */
 
@@ -167,27 +96,23 @@ export default function EventScreen() {
         setLoading(true);
         setError("");
 
-        /*
-          Backend จริง:
-
-          const response = await fetch(
-            `${API_URL}/events`
-          );
-
-          const data = await response.json();
-
-          setEvents(data);
-        */
-
-        /*
-          ตอนนี้ใช้ Mock Data
-          เพื่อดู UI ก่อน
-        */
-
-        setTimeout(() => {
-          setEvents(MOCK_EVENTS);
-          setLoading(false);
-        }, 500);
+        const data = await getEvents();
+        setEvents(
+          data.map((event) => ({
+            ...event,
+            date: new Date(event.eventDate).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            startTime: new Date(event.eventDate).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            sourceUrl: event.externalLink ?? undefined,
+            favorite: false,
+          }))
+        );
       } catch (err) {
         console.error(
           "Failed to load events:",
@@ -197,7 +122,7 @@ export default function EventScreen() {
         setError(
           "Unable to load events."
         );
-
+      } finally {
         setLoading(false);
       }
     };
