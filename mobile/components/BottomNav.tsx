@@ -1,61 +1,156 @@
 // @ts-nocheck
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
 
+const COLORS = {
+  orange: '#FA7C35',
+  inactive: '#77716D',
+  white: '#FFFFFF',
+};
+
 const TABS = [
-  { label: 'Home', icon: 'home-outline', activeIcon: 'home', route: '/' },
-  { label: 'Place', icon: 'location-outline', activeIcon: 'location', route: '/place' },
-  { label: 'Event', icon: 'calendar-outline', activeIcon: 'calendar', route: '/event' },
-  { label: 'Checklist', icon: 'checkbox-outline', activeIcon: 'checkbox', route: '/checklist' },
+  {
+    label: 'Home',
+    icon: 'home-outline',
+    activeIcon: 'home',
+    route: '/',
+  },
+  {
+    label: 'Place',
+    icon: 'location-outline',
+    activeIcon: 'location',
+    route: '/place',
+  },
+  {
+    label: 'Event',
+    icon: 'calendar-outline',
+    activeIcon: 'calendar',
+    route: '/event',
+  },
+  {
+    label: 'Checklist',
+    icon: 'checkbox-outline',
+    activeIcon: 'checkbox',
+    route: '/checklist',
+  },
 ];
 
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const isActive = (route: string) => {
+    if (route === '/') {
+      return pathname === '/' || pathname === '/index';
+    }
+
+    return pathname.startsWith(route);
+  };
+
   return (
     <View style={styles.container}>
-      {TABS.map((tab) => {
-        const active = pathname === tab.route;
-        return (
-          <TouchableOpacity
-            key={tab.route}
-            style={styles.tab}
-            onPress={() => {
-              if (!active) router.replace(tab.route);
-            }}
-          >
-            {active ? (
-              <View style={styles.activeIconWrap}>
-                <Ionicons name={tab.activeIcon} size={20} color="#fff" />
+      <View style={styles.navInner}>
+        {TABS.map((tab) => {
+          const active = isActive(tab.route);
+
+          return (
+            <TouchableOpacity
+              key={tab.route}
+              activeOpacity={0.75}
+              style={styles.tab}
+              onPress={() => {
+                if (!active) {
+                  router.replace(tab.route);
+                }
+              }}
+            >
+              <View
+                style={[
+                  styles.iconContainer,
+                  active && styles.activeIconContainer,
+                ]}
+              >
+                <Ionicons
+                  name={active ? tab.activeIcon : tab.icon}
+                  size={active ? 15 : 16}
+                  color={active ? COLORS.white : COLORS.inactive}
+                />
               </View>
-            ) : (
-              <Ionicons name={tab.icon} size={22} color="#8a8a8a" />
-            )}
-            <Text style={[styles.label, active && styles.activeLabel]}>{tab.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+
+              <Text
+                style={[
+                  styles.label,
+                  active && styles.activeLabel,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    height: Platform.OS === 'ios' ? 59 : 55,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 0.5,
+    borderTopColor: '#EFECEB',
+  },
+
+  navInner: {
+    flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingTop: 8,
-    paddingBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    alignItems: 'flex-start',
+    justifyContent: 'space-around',
+    paddingHorizontal: 9,
+    paddingTop: 5,
   },
-  tab: { flex: 1, alignItems: 'center', gap: 4 },
-  activeIconWrap: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#E86A33', alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    minHeight: 48,
   },
-  label: { fontSize: 11, color: '#8a8a8a' },
-  activeLabel: { color: '#E86A33', fontWeight: '600' },
+
+  iconContainer: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+
+  activeIconContainer: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.orange,
+  },
+
+  label: {
+    fontSize: 7.5,
+    lineHeight: 10,
+    fontWeight: '500',
+    color: COLORS.inactive,
+    textAlign: 'center',
+  },
+
+  activeLabel: {
+    color: COLORS.orange,
+    fontWeight: '700',
+  },
 });

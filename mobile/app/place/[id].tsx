@@ -1,555 +1,1222 @@
 // @ts-nocheck
-// Ported from screens/PlaceDetailScreen.js — route.params.placeId becomes the
-// [id] dynamic segment via useLocalSearchParams, navigation.goBack() -> router.back().
-import React from 'react';
+
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
-  Image,
   ScrollView,
-  TouchableOpacity,
-  Linking,
   StyleSheet,
-  SafeAreaView,
-} from 'react-native';
-import { Ionicons, FontAwesome5, Feather } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+  TouchableOpacity,
+  Image,
+  Linking,
+  ActivityIndicator,
+} from "react-native";
 
-const API_BASE_URL = 'http://172.20.10.2:3000';
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
-const SHUTTLE_LINES = [
-  { key: 'red', label: 'Red Line', color: '#E53935' },
-  { key: 'blue', label: 'Blue Line', color: '#1E88E5' },
-  { key: 'green', label: 'Green Line', color: '#43A047' },
-  { key: 'yellow', label: 'Yellow Line', color: '#FBC02D' },
-];
+/* =========================================================
+   COLORS
+========================================================= */
+
+const COLORS = {
+  orange: "#FA7C35",
+  orangeLight: "#FFF0E8",
+
+  background: "#FAF7F5",
+  white: "#FFFFFF",
+
+  text: "#2A2928",
+  textSecondary: "#686360",
+  textLight: "#8E8985",
+
+  border: "#EFE8E4",
+
+  red: "#E63946",
+
+  green: "#55A76A",
+  blue: "#4BA6D8",
+};
+
+/* =========================================================
+   TYPES
+   -----------------------------------------------
+   โครงสร้างนี้ออกแบบให้ตรงกับ Backend ได้ง่าย
+========================================================= */
+
+type NearbyPlace = {
+  placeId: string;
+  name: string;
+  category: string;
+  distance: string;
+  image: any;
+};
+
+type ShuttleRoute = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+type PlaceDetail = {
+  placeId: string;
+  name: string;
+  category: string;
+  image: any;
+
+  description: string;
+
+  openingHours: {
+    open: string;
+    close: string;
+  };
+
+  latitude: number;
+  longitude: number;
+
+  shuttleRoutes: ShuttleRoute[];
+
+  nearbyPlaces: NearbyPlace[];
+};
+
+/* =========================================================
+   MOCK DATA
+   -----------------------------------------------
+   ภายหลังสามารถเปลี่ยนเป็น API ได้
+========================================================= */
+
+const MOCK_PLACE_DETAIL: PlaceDetail = {
+  placeId: "central-library",
+
+  name: "Central Library",
+
+  category: "Building",
+
+  image: require("../../assets/images/central-library.jpg"),
+
+  description:
+    "The Central Library is a convenient place for students to study, borrow books, use computers and access various learning resources.",
+
+  openingHours: {
+    open: "08:00 AM",
+    close: "08:00 PM",
+  },
+
+  latitude: 16.4419,
+  longitude: 102.8359,
+
+  shuttleRoutes: [
+    {
+      id: "blue",
+      name: "Blue Line",
+      color: "#4B8FD8",
+    },
+    {
+      id: "orange",
+      name: "Orange Line",
+      color: "#FA7C35",
+    },
+  ],
+
+  nearbyPlaces: [
+    {
+      placeId: "food-court",
+      name: "KKU Food Court",
+      category: "Restaurant",
+      distance: "120 m",
+      image: require("../../assets/images/food-court.jpg"),
+    },
+
+    {
+      placeId: "coffee-shop",
+      name: "Library Coffee",
+      category: "Cafe",
+      distance: "180 m",
+      image: require("../../assets/images/coffee-shop.jpg"),
+    },
+
+    {
+      placeId: "sc-building",
+      name: "Science Building",
+      category: "Building",
+      distance: "350 m",
+      image: require("../../assets/images/science-building.jpg"),
+    },
+
+    {
+      placeId: "student-center",
+      name: "Student Center",
+      category: "Building",
+      distance: "500 m",
+      image: require("../../assets/images/student-center.jpg"),
+    },
+  ],
+};
+
+/* =========================================================
+   PLACE DETAIL SCREEN
+========================================================= */
 
 export default function PlaceDetailScreen() {
-  const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [place, setPlace] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    const loadPlace = async () => {
+  const { id } = useLocalSearchParams();
+
+  const [place, setPlace] =
+    useState<PlaceDetail | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  /* =======================================================
+     LOAD PLACE DETAIL
+  ======================================================= */
+
+  useEffect(() => {
+    const loadPlaceDetail = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/places`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        const found = data.find((item) => String(item.placeId) === String(id));
-        setPlace(
-          found
-            ? {
-                ...found,
-                id: String(found.placeId),
-                longDescription: found.description ?? '',
-                hours: found.hours ?? 'Open hours unavailable',
-                officialEntry: false,
-              }
-            : null
+        setLoading(true);
+
+        /*
+          ===================================================
+          BACKEND VERSION
+          ===================================================
+
+          const response = await fetch(
+            `${API_URL}/places/${id}`
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              "Failed to fetch place"
+            );
+          }
+
+          const data =
+            await response.json();
+
+          setPlace(data);
+
+          ===================================================
+        */
+
+        /*
+         * MOCK DATA
+         */
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, 300)
         );
+
+        setPlace(MOCK_PLACE_DETAIL);
       } catch (error) {
-        console.error('Failed to load place:', error);
-        setPlace(null);
+        console.error(
+          "Failed to load place:",
+          error
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    loadPlace();
+    if (id) {
+      loadPlaceDetail();
+    }
   }, [id]);
+
+  /* =======================================================
+     GOOGLE MAPS
+  ======================================================= */
+
+  const openGoogleMaps = () => {
+    if (!place) return;
+
+    const url =
+      `https://www.google.com/maps/dir/?api=1` +
+      `&destination=${place.latitude},${place.longitude}`;
+
+    Linking.openURL(url);
+  };
+
+  /* =======================================================
+     NEARBY PLACE
+  ======================================================= */
+
+  const openNearbyPlace = (
+    nearbyPlace: NearbyPlace
+  ) => {
+    router.push(
+      `/place/${nearbyPlace.placeId}`
+    );
+  };
+
+  /* =======================================================
+     LOADING
+  ======================================================= */
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.notFound}>Loading...</Text>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator
+          size="small"
+          color={COLORS.orange}
+        />
+
+        <Text style={styles.loadingText}>
+          Loading place...
+        </Text>
+      </View>
     );
   }
+
+  /* =======================================================
+     ERROR
+  ======================================================= */
 
   if (!place) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.notFound}>Place not found.</Text>
-      </SafeAreaView>
+      <View style={styles.errorContainer}>
+        <Ionicons
+          name="location-outline"
+          size={35}
+          color={COLORS.textLight}
+        />
+
+        <Text style={styles.errorTitle}>
+          Place not found
+        </Text>
+
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>
+            Go Back
+          </Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
-  const openMaps = () => {
-    if (place.latitude != null && place.longitude != null) {
-      Linking.openURL(
-        `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`
-      );
-      return;
-    }
-
-    if (place.address) {
-      Linking.openURL(
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`
-      );
-    }
-  };
-
-  const isBuilding = place.category === 'Building';
-  const hasReviews = !!place.reviews?.length;
+  /* =======================================================
+     MAIN
+  ======================================================= */
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Top header: back button sits above the hero image */}
-        <View style={styles.topHeader}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={20} color="#1a1a1a" />
-          </TouchableOpacity>
-        </View>
+    <View style={styles.container}>
 
-        <View style={styles.content}>
-          {/* Hero image */}
-          <View style={styles.heroWrapper}>
-            <View style={styles.heroPlaceholder}>
-              <Ionicons name="location" size={40} color="#999" />
-            </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.scrollContent
+        }
+      >
+
+        {/* =================================================
+            BACK BUTTON
+        ================================================= */}
+
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={styles.topBackButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons
+            name="arrow-back"
+            size={18}
+            color={COLORS.text}
+          />
+
+          <Text style={styles.backText}>
+            Back
+          </Text>
+        </TouchableOpacity>
+
+        {/* =================================================
+            MAIN PLACE CARD
+        ================================================= */}
+
+        <View style={styles.mainCard}>
+
+          {/* IMAGE */}
+
+          <View style={styles.imageContainer}>
+
+            <Image
+              source={place.image}
+              style={styles.mainImage}
+            />
+
+            {/* CATEGORY */}
+
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryBadgeText}>
-                {place.category?.toUpperCase()}
+
+              <Ionicons
+                name="business-outline"
+                size={12}
+                color={COLORS.orange}
+              />
+
+              <Text
+                style={styles.categoryText}
+              >
+                {place.category}
               </Text>
+
             </View>
+
           </View>
 
-          {/* Info card */}
-          <View style={styles.infoCard}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>{place.name}</Text>
-              <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="more-vertical" size={18} color="#999" />
-              </TouchableOpacity>
-            </View>
+          {/* CONTENT */}
 
-            <View style={styles.metaRow}>
-              <Ionicons name="time-outline" size={15} color="#666" />
-              <Text style={styles.metaText}>{place.hours}</Text>
+          <View style={styles.mainContent}>
 
-              {place.officialEntry && (
-                <>
-                  <Text style={styles.metaDivider}>|</Text>
-                  <Ionicons name="checkmark-circle" size={15} color="#E86A33" />
-                  <Text style={[styles.metaText, { color: '#E86A33' }]}>
-                    Official Entry
-                  </Text>
-                </>
-              )}
-            </View>
-
-            <Text style={styles.description}>
-              {place.longDescription || 'No description available.'}
+            <Text style={styles.placeName}>
+              {place.name}
             </Text>
 
-            <TouchableOpacity style={styles.mapsButton} onPress={openMaps}>
-              <Ionicons name="navigate" size={16} color="#fff" />
-              <Text style={styles.mapsButtonText}>Navigate via Google Maps</Text>
+            {/* OPENING HOURS */}
+
+            <View style={styles.infoRow}>
+
+              <View style={styles.infoIcon}>
+                <Ionicons
+                  name="time-outline"
+                  size={15}
+                  color={COLORS.orange}
+                />
+              </View>
+
+              <View>
+                <Text style={styles.infoLabel}>
+                  Opening Hours
+                </Text>
+
+                <Text style={styles.infoValue}>
+                  {place.openingHours.open}
+                  {" - "}
+                  {place.openingHours.close}
+                </Text>
+              </View>
+
+            </View>
+
+            {/* DESCRIPTION */}
+
+            <Text
+              style={styles.description}
+            >
+              {place.description}
+            </Text>
+
+            {/* DIRECTIONS */}
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.directionButton}
+              onPress={openGoogleMaps}
+            >
+
+              <Ionicons
+                name="navigate-outline"
+                size={17}
+                color="#FFFFFF"
+              />
+
+              <Text
+                style={styles.directionText}
+              >
+                Get Directions
+              </Text>
+
+              <Ionicons
+                name="arrow-forward"
+                size={14}
+                color="#FFFFFF"
+              />
+
             </TouchableOpacity>
+
           </View>
 
-          {/* Rating / Avg price stat cards — restaurants & cafes */}
-          {(place.rating != null || place.avgPrice) && (
-            <View style={styles.statsRow}>
-              {place.rating != null && (
-                <View style={styles.statCard}>
-                  <Ionicons name="star" size={20} color="#3D7BC2" />
-                  <Text style={styles.statValue}>{place.rating}</Text>
-                  <Text style={styles.statLabel}>Rating</Text>
-                </View>
-              )}
-              {place.avgPrice && (
-                <View style={styles.statCard}>
-                  <Ionicons name="wallet-outline" size={20} color="#3D7BC2" />
-                  <Text style={styles.statValue}>{place.avgPrice}</Text>
-                  <Text style={styles.statLabel}>Avg Price</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Shuttle bus info — buildings only */}
-          {isBuilding && (
-            <View style={styles.shuttleCard}>
-              <View style={styles.shuttleHeader}>
-                <Text style={styles.sectionTitle}>Shuttle Bus Info</Text>
-                <FontAwesome5 name="bus" size={16} color="#E86A33" />
-              </View>
-
-              <View style={styles.shuttleGrid}>
-                {SHUTTLE_LINES.map((line) => (
-                  <View key={line.key} style={styles.shuttlePill}>
-                    <View
-                      style={[styles.shuttleDot, { backgroundColor: line.color }]}
-                    />
-                    <Text style={styles.shuttleLabel}>{line.label}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Places nearby — buildings only */}
-          {isBuilding && place.nearby?.length > 0 && (
-            <>
-              <View style={styles.sectionRow}>
-                <Text style={styles.sectionTitle}>Places Nearby</Text>
-                <TouchableOpacity>
-                  <Text style={styles.seeAll}>View All</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.nearbyRow}>
-                {place.nearby.map((item) => (
-                  <View key={item.id} style={styles.nearbyCard}>
-                    <Image source={item.image} style={styles.nearbyImage} />
-                    <View style={styles.nearbyTextWrap}>
-                      <Text style={styles.nearbyTitle} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.nearbySubtitle} numberOfLines={1}>
-                        {item.subtitle}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-
-          {/* Community feedback — restaurants & cafes */}
-          {hasReviews && (
-            <>
-              <View style={styles.sectionRow}>
-                <Text style={styles.sectionTitle}>Community Feedback</Text>
-                <TouchableOpacity>
-                  <Text style={styles.seeAll}>See All</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.feedbackGrid}>
-                {place.reviews.map((review) => (
-                  <View
-                    key={review.id}
-                    style={[styles.reviewCard, { backgroundColor: review.color }]}
-                  >
-                    <View style={styles.reviewStars}>
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Ionicons
-                          key={i}
-                          name={i < review.rating ? 'star' : 'star-outline'}
-                          size={11}
-                          color="#333"
-                        />
-                      ))}
-                    </View>
-                    <Text style={styles.reviewText}>“{review.text}”</Text>
-                    <Text style={styles.reviewAuthor}>- {review.author}</Text>
-                  </View>
-                ))}
-
-                <TouchableOpacity style={styles.addReviewCard}>
-                  <View style={styles.addReviewIcon}>
-                    <Ionicons name="add" size={20} color="#666" />
-                  </View>
-                  <Text style={styles.addReviewText}>Add your review</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-
-          <View style={{ height: 20 }} />
         </View>
+
+        {/* =================================================
+            SHUTTLE BUS
+        ================================================= */}
+
+        <View style={styles.sectionHeader}>
+
+          <View>
+            <Text style={styles.sectionTitle}>
+              Shuttle Bus Info
+            </Text>
+
+            <Text
+              style={styles.sectionSubtitle}
+            >
+              Shuttle routes passing nearby
+            </Text>
+          </View>
+
+          <View style={styles.busIcon}>
+            <Ionicons
+              name="bus-outline"
+              size={18}
+              color={COLORS.orange}
+            />
+          </View>
+
+        </View>
+
+        <View style={styles.shuttleCard}>
+
+          {place.shuttleRoutes.map(
+            (route, index) => (
+              <View
+                key={route.id}
+                style={[
+                  styles.routeItem,
+
+                  index !==
+                    place.shuttleRoutes
+                      .length -
+                      1 &&
+                    styles.routeDivider,
+                ]}
+              >
+
+                <View
+                  style={[
+                    styles.routeDot,
+                    {
+                      backgroundColor:
+                        route.color,
+                    },
+                  ]}
+                />
+
+                <View
+                  style={styles.routeInfo}
+                >
+                  <Text
+                    style={styles.routeName}
+                  >
+                    {route.name}
+                  </Text>
+
+                  <Text
+                    style={styles.routeSubtitle}
+                  >
+                    Stops near {place.name}
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={COLORS.textLight}
+                />
+
+              </View>
+            )
+          )}
+
+        </View>
+
+        {/* =================================================
+            PLACES NEARBY
+        ================================================= */}
+
+        <View style={styles.nearbyHeader}>
+
+          <View>
+            <Text style={styles.sectionTitle}>
+              Places Nearby
+            </Text>
+
+            <Text
+              style={styles.sectionSubtitle}
+            >
+              Explore places around here
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={openGoogleMaps}
+          >
+            <Text style={styles.mapText}>
+              Map
+            </Text>
+          </TouchableOpacity>
+
+        </View>
+
+        {/* NEARBY LIST */}
+
+        <View style={styles.nearbyList}>
+
+          {place.nearbyPlaces.map(
+            (nearby) => (
+              <NearbyPlaceCard
+                key={nearby.placeId}
+                place={nearby}
+                onPress={() =>
+                  openNearbyPlace(
+                    nearby
+                  )
+                }
+              />
+            )
+          )}
+
+        </View>
+
+        <View style={styles.bottomSpace} />
+
       </ScrollView>
-    </SafeAreaView>
+
+    </View>
   );
 }
 
+/* =========================================================
+   NEARBY PLACE CARD
+========================================================= */
+
+function NearbyPlaceCard({
+  place,
+  onPress,
+}: {
+  place: NearbyPlace;
+  onPress: () => void;
+}) {
+  /* =======================================================
+     CATEGORY ICON
+  ======================================================= */
+
+  const categoryIcon =
+    place.category === "Restaurant"
+      ? "restaurant-outline"
+      : place.category === "Cafe"
+        ? "cafe-outline"
+        : "business-outline";
+
+  const categoryColor =
+    place.category === "Restaurant"
+      ? COLORS.red
+      : place.category === "Cafe"
+        ? COLORS.orange
+        : COLORS.blue;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={styles.nearbyCard}
+      onPress={onPress}
+    >
+
+      {/* IMAGE */}
+
+      <Image
+        source={place.image}
+        style={styles.nearbyImage}
+      />
+
+      {/* CONTENT */}
+
+      <View style={styles.nearbyContent}>
+
+        <View style={styles.nearbyTitleRow}>
+
+          <Text
+            style={styles.nearbyName}
+            numberOfLines={1}
+          >
+            {place.name}
+          </Text>
+
+          <Ionicons
+            name="chevron-forward"
+            size={15}
+            color={COLORS.textLight}
+          />
+
+        </View>
+
+        {/* CATEGORY */}
+
+        <View style={styles.nearbyCategory}>
+
+          <Ionicons
+            name={categoryIcon}
+            size={12}
+            color={categoryColor}
+          />
+
+          <Text
+            style={[
+              styles.nearbyCategoryText,
+              {
+                color: categoryColor,
+              },
+            ]}
+          >
+            {place.category}
+          </Text>
+
+        </View>
+
+        {/* DISTANCE */}
+
+        <View style={styles.distanceRow}>
+
+          <Ionicons
+            name="location-outline"
+            size={11}
+            color={COLORS.textLight}
+          />
+
+          <Text style={styles.distanceText}>
+            {place.distance}
+          </Text>
+
+        </View>
+
+      </View>
+
+    </TouchableOpacity>
+  );
+}
+
+/* =========================================================
+   STYLES
+========================================================= */
+
 const styles = StyleSheet.create({
-  safeArea: {
+
+  /* =======================================================
+     SCREEN
+  ======================================================= */
+
+  container: {
     flex: 1,
-    backgroundColor: '#F7F5F2',
+    backgroundColor: COLORS.background,
   },
-  notFound: {
-    textAlign: 'center',
-    marginTop: 40,
-    color: '#999',
-  },
-  topHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: {
-    paddingHorizontal: 20,
-  },
-  heroWrapper: {
-    width: '100%',
-    height: 200,
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  heroPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#EDEAE5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryBadge: {
-    position: 'absolute',
-    top: 14,
-    left: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+
+  scrollContent: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingTop: 8,
+    paddingBottom: 20,
   },
-  categoryBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+
+  /* =======================================================
+     BACK
+  ======================================================= */
+
+  topBackButton: {
+    flexDirection: "row",
+    alignItems: "center",
+
+    alignSelf: "flex-start",
+
+    paddingVertical: 7,
+    paddingHorizontal: 5,
+
+    marginBottom: 7,
   },
-  infoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+
+  backText: {
+    fontSize: 9.5,
+    fontWeight: "600",
+
+    color: COLORS.text,
+
+    marginLeft: 5,
+  },
+
+  /* =======================================================
+     MAIN CARD
+  ======================================================= */
+
+  mainCard: {
+    backgroundColor: COLORS.white,
+
+    borderRadius: 25,
+
+    overflow: "hidden",
+
+    marginBottom: 17,
+
+    shadowColor: "#AFA7A2",
+
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+
+    shadowOpacity: 0.09,
+    shadowRadius: 9,
+
     elevation: 3,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+
+  /* =======================================================
+     MAIN IMAGE
+  ======================================================= */
+
+  imageContainer: {
+    width: "100%",
+    height: 185,
+
+    position: "relative",
   },
-  title: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginRight: 10,
+
+  mainImage: {
+    width: "100%",
+    height: "100%",
+
+    resizeMode: "cover",
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 12,
-  },
-  metaText: {
-    fontSize: 13,
-    color: '#666',
-  },
-  metaDivider: {
-    color: '#ccc',
-    marginHorizontal: 4,
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: '#555',
-    marginBottom: 18,
-  },
-  mapsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E86A33',
+
+  categoryBadge: {
+    position: "absolute",
+
+    left: 11,
+    bottom: 11,
+
+    height: 27,
+
+    paddingHorizontal: 10,
+
     borderRadius: 14,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  mapsButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    alignItems: 'center',
-    paddingVertical: 16,
+
+    backgroundColor:
+      "rgba(255,255,255,0.94)",
+
+    flexDirection: "row",
+    alignItems: "center",
+
     gap: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
   },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
+
+  categoryText: {
+    fontSize: 8.5,
+
+    fontWeight: "700",
+
+    color: COLORS.orange,
   },
-  statLabel: {
-    fontSize: 11,
-    color: '#999',
+
+  /* =======================================================
+     MAIN CONTENT
+  ======================================================= */
+
+  mainContent: {
+    paddingHorizontal: 13,
+    paddingVertical: 14,
   },
-  shuttleCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    marginTop: 20,
+
+  placeName: {
+    fontSize: 18,
+
+    fontWeight: "800",
+
+    color: COLORS.text,
+
+    marginBottom: 11,
   },
-  shuttleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+
+    marginBottom: 11,
   },
+
+  infoIcon: {
+    width: 29,
+    height: 29,
+
+    borderRadius: 10,
+
+    backgroundColor:
+      COLORS.orangeLight,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    marginRight: 8,
+  },
+
+  infoLabel: {
+    fontSize: 7.5,
+
+    color: COLORS.textLight,
+
+    fontWeight: "600",
+
+    marginBottom: 2,
+  },
+
+  infoValue: {
+    fontSize: 9.5,
+
+    color: COLORS.text,
+
+    fontWeight: "600",
+  },
+
+  description: {
+    fontSize: 8.5,
+
+    lineHeight: 13,
+
+    color: COLORS.textSecondary,
+
+    marginBottom: 13,
+  },
+
+  /* =======================================================
+     DIRECTIONS
+  ======================================================= */
+
+  directionButton: {
+    height: 42,
+
+    borderRadius: 21,
+
+    backgroundColor: COLORS.orange,
+
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    justifyContent: "center",
+
+    gap: 6,
+  },
+
+  directionText: {
+    fontSize: 9.5,
+
+    color: "#FFFFFF",
+
+    fontWeight: "800",
+  },
+
+  /* =======================================================
+     SECTION HEADER
+  ======================================================= */
+
+  sectionHeader: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    justifyContent: "space-between",
+
+    marginBottom: 9,
+  },
+
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontSize: 13.5,
+
+    fontWeight: "800",
+
+    color: COLORS.text,
   },
-  shuttleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  shuttlePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F7F5F2',
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    width: '47%',
-  },
-  shuttleDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-  },
-  shuttleLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#444',
-  },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  seeAll: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#E86A33',
-  },
-  nearbyRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  nearbyCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  nearbyImage: {
-    width: '100%',
-    height: 90,
-  },
-  nearbyTextWrap: {
-    padding: 10,
-  },
-  nearbyTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  nearbySubtitle: {
-    fontSize: 12,
-    color: '#888',
+
+  sectionSubtitle: {
+    fontSize: 7.5,
+
+    color: COLORS.textLight,
+
     marginTop: 2,
   },
-  feedbackGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  reviewCard: {
-    width: '47%',
-    borderRadius: 16,
-    padding: 14,
-    minHeight: 120,
-    justifyContent: 'space-between',
-  },
-  reviewStars: {
-    flexDirection: 'row',
-    gap: 2,
-    marginBottom: 8,
-  },
-  reviewText: {
-    fontSize: 12.5,
-    color: '#333',
-    lineHeight: 18,
-    flex: 1,
-  },
-  reviewAuthor: {
-    fontSize: 11,
-    color: '#555',
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  addReviewCard: {
-    width: '47%',
-    minHeight: 120,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#ddd',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  addReviewIcon: {
+
+  busIcon: {
     width: 34,
     height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F0F0F0',
-    alignItems: 'center',
-    justifyContent: 'center',
+
+    borderRadius: 12,
+
+    backgroundColor:
+      COLORS.orangeLight,
+
+    alignItems: "center",
+    justifyContent: "center",
   },
-  addReviewText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
+
+  /* =======================================================
+     SHUTTLE CARD
+  ======================================================= */
+
+  shuttleCard: {
+    backgroundColor: COLORS.white,
+
+    borderRadius: 20,
+
+    paddingHorizontal: 12,
+
+    paddingVertical: 3,
+
+    marginBottom: 17,
+
+    shadowColor: "#AFA7A2",
+
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+
+    shadowOpacity: 0.07,
+
+    shadowRadius: 8,
+
+    elevation: 2,
+  },
+
+  routeItem: {
+    minHeight: 55,
+
+    flexDirection: "row",
+
+    alignItems: "center",
+  },
+
+  routeDivider: {
+    borderBottomWidth: 1,
+
+    borderBottomColor:
+      COLORS.border,
+  },
+
+  routeDot: {
+    width: 12,
+    height: 12,
+
+    borderRadius: 6,
+
+    marginRight: 10,
+  },
+
+  routeInfo: {
+    flex: 1,
+  },
+
+  routeName: {
+    fontSize: 9.5,
+
+    fontWeight: "700",
+
+    color: COLORS.text,
+  },
+
+  routeSubtitle: {
+    fontSize: 7.5,
+
+    color: COLORS.textLight,
+
+    marginTop: 2,
+  },
+
+  /* =======================================================
+     NEARBY
+  ======================================================= */
+
+  nearbyHeader: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    justifyContent: "space-between",
+
+    marginBottom: 9,
+  },
+
+  mapText: {
+    fontSize: 8.5,
+
+    fontWeight: "700",
+
+    color: COLORS.orange,
+  },
+
+  nearbyList: {
+    gap: 8,
+  },
+
+  /* =======================================================
+     NEARBY CARD
+  ======================================================= */
+
+  nearbyCard: {
+    minHeight: 73,
+
+    backgroundColor: COLORS.white,
+
+    borderRadius: 18,
+
+    padding: 8,
+
+    flexDirection: "row",
+
+    shadowColor: "#AFA7A2",
+
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+
+    shadowOpacity: 0.06,
+
+    shadowRadius: 6,
+
+    elevation: 1,
+  },
+
+  nearbyImage: {
+    width: 57,
+    height: 57,
+
+    borderRadius: 14,
+
+    resizeMode: "cover",
+  },
+
+  nearbyContent: {
+    flex: 1,
+
+    paddingLeft: 9,
+
+    paddingVertical: 2,
+  },
+
+  nearbyTitleRow: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    justifyContent: "space-between",
+  },
+
+  nearbyName: {
+    flex: 1,
+
+    fontSize: 9.5,
+
+    fontWeight: "700",
+
+    color: COLORS.text,
+
+    marginRight: 5,
+  },
+
+  nearbyCategory: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    marginTop: 5,
+
+    gap: 4,
+  },
+
+  nearbyCategoryText: {
+    fontSize: 7.5,
+
+    fontWeight: "600",
+  },
+
+  distanceRow: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    marginTop: 5,
+
+    gap: 3,
+  },
+
+  distanceText: {
+    fontSize: 7.5,
+
+    color: COLORS.textLight,
+  },
+
+  /* =======================================================
+     LOADING
+  ======================================================= */
+
+  loadingContainer: {
+    flex: 1,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    backgroundColor:
+      COLORS.background,
+  },
+
+  loadingText: {
+    fontSize: 9,
+
+    color: COLORS.textLight,
+
+    marginTop: 8,
+  },
+
+  /* =======================================================
+     ERROR
+  ======================================================= */
+
+  errorContainer: {
+    flex: 1,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    backgroundColor:
+      COLORS.background,
+  },
+
+  errorTitle: {
+    fontSize: 14,
+
+    fontWeight: "700",
+
+    color: COLORS.text,
+
+    marginTop: 8,
+  },
+
+  backButton: {
+    marginTop: 15,
+
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+
+    borderRadius: 20,
+
+    backgroundColor:
+      COLORS.orange,
+  },
+
+  backButtonText: {
+    fontSize: 9,
+
+    color: "#FFFFFF",
+
+    fontWeight: "700",
+  },
+
+  /* =======================================================
+     BOTTOM
+  ======================================================= */
+
+  bottomSpace: {
+    height: 15,
   },
 });

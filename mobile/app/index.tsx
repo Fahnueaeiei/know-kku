@@ -1,80 +1,1275 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+// @ts-nocheck
 
-const API_URL = 'http://172.20.10.2:3000';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
-type Post = {
-  postId: number;
-  content: string;
-  category?: string | null;
-  isAnonymous?: boolean | null;
-  createdAt?: string | null;
-  user?: { userId: number; displayName?: string | null } | null;
+import {
+  SafeAreaView,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  StatusBar,
+  Animated,
+  Pressable,
+} from 'react-native';
+
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
+import HeadBar from '../components/HeadBar';
+import BottomNav from '../components/BottomNav';
+
+/* =========================================================
+   DESIGN TOKENS
+========================================================= */
+
+const COLORS = {
+  orange: '#FA7C35',
+  orangeDark: '#E96826',
+  orangeLight: '#FFF0E8',
+
+  background: '#FAF7F5',
+  white: '#FFFFFF',
+
+  text: '#2A2928',
+  textSecondary: '#686360',
+  textLight: '#8E8985',
+
+  border: '#EFE8E4',
+
+  wifi: '#E9F7FF',
+  bus: '#FFF0E8',
+  work: '#F2EEEC',
+
+  blue: '#43A9D9',
+  green: '#55A76A',
 };
 
+/* =========================================================
+   TYPES
+========================================================= */
+
+type HomeFact = {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+};
+
+type HomeCard = {
+  id: string;
+  type: 'wifi' | 'bus' | 'workspace';
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+};
+
+type HomeData = {
+  facts: HomeFact[];
+  cards: HomeCard[];
+};
+
+/* =========================================================
+   MOCK HOME DATA
+   ---------------------------------------------------------
+   โครงสร้างนี้ตั้งใจออกแบบให้ Backend ส่ง JSON
+   รูปแบบเดียวกันกลับมาได้เลย
+========================================================= */
+
+const homeData: HomeData = {
+  facts: [
+    {
+      id: 'fact-001',
+
+      category: 'CAMPUS LIFE',
+
+      title:
+        'รู้ไหม? นักศึกษา KKU สามารถใช้ห้องสมุดกลางเป็นพื้นที่อ่านหนังสือได้ฟรี',
+
+      description:
+        'Central Library มีพื้นที่สำหรับอ่านหนังสือ ค้นคว้า และใช้ทรัพยากรต่าง ๆ สำหรับนักศึกษา',
+
+      icon: 'bulb-outline',
+    },
+
+    {
+      id: 'fact-002',
+
+      category: 'STUDENT SERVICES',
+
+      title:
+        'รู้ไหม? KKU มีบริการ Shuttle Bus สำหรับเดินทางภายในมหาวิทยาลัย',
+
+      description:
+        'สามารถตรวจสอบเส้นทางและจุดจอดรถ Shuttle Bus ที่เหมาะกับสถานที่ที่คุณต้องการไปได้',
+
+      icon: 'bus-outline',
+    },
+
+    {
+      id: 'fact-003',
+
+      category: 'CAMPUS GUIDE',
+
+      title:
+        'รู้ไหม? ในมหาวิทยาลัยมีสถานที่นั่งอ่านหนังสือมากกว่าที่คิด',
+
+      description:
+        'ค้นหาห้องอ่านหนังสือ คาเฟ่ และพื้นที่นั่งพักใกล้ตัวคุณได้ผ่าน Know KKU',
+
+      icon: 'sparkles-outline',
+    },
+  ],
+
+  cards: [
+    {
+      id: 'wifi',
+
+      type: 'wifi',
+
+      title:
+        'Free Wi-Fi everywhere on campus',
+
+      description:
+        'Connect seamlessly across all faculty buildings using your student account.',
+
+      icon: 'wifi',
+    },
+
+    {
+      id: 'bus',
+
+      type: 'bus',
+
+      title:
+        'Shuttle Bus routes simplified',
+
+      description:
+        'Live tracking available for all major loops directly in the app map.',
+
+      icon: 'bus',
+    },
+
+    {
+      id: 'workspace',
+
+      type: 'workspace',
+
+      title:
+        'Co-working spaces in every faculty',
+
+      description:
+        'Discover hidden study spots and quiet places near your current class location.',
+
+      icon: 'cafe',
+    },
+  ],
+};
+
+/* =========================================================
+   HOME SCREEN
+========================================================= */
+
 export default function HomeScreen() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const router = useRouter();
+
+  /* =======================================================
+     FACT STATE
+  ======================================================= */
+
+  const [factIndex, setFactIndex] =
+    useState(0);
+
+  /* =======================================================
+     FLOAT ANIMATION
+  ======================================================= */
+
+  const floatAnimation =
+    useRef(
+      new Animated.Value(0)
+    ).current;
 
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const response = await fetch(`${API_URL}/posts`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        setPosts(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error('Failed to fetch posts:', err);
-        setError('Unable to load posts.');
-      } finally {
-        setLoading(false);
-      }
+    const animation =
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(
+            floatAnimation,
+            {
+              toValue: -4,
+              duration: 1800,
+              useNativeDriver: true,
+            }
+          ),
+
+          Animated.timing(
+            floatAnimation,
+            {
+              toValue: 0,
+              duration: 1800,
+              useNativeDriver: true,
+            }
+          ),
+        ])
+      );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
     };
-    fetchPosts();
   }, []);
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Community Feed</Text>
+  /* =======================================================
+     AUTO CHANGE FACT
+  ======================================================= */
 
-      {loading ? (
-        <ActivityIndicator size="large" style={styles.loader} />
-      ) : error ? (
-        <Text style={styles.error}>{error}</Text>
-      ) : (
-        <FlatList
-          data={posts}
-          keyExtractor={(item) => String(item.postId)}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.postCard}>
-              <Text style={styles.author}>
-                {item.isAnonymous ? 'Anonymous' : item.user?.displayName || 'KKU Student'}
-              </Text>
-              {item.category && <Text style={styles.category}>{item.category}</Text>}
-              <Text style={styles.content}>{item.content}</Text>
-            </View>
+  useEffect(() => {
+    const interval =
+      setInterval(() => {
+        setFactIndex(
+          (current) =>
+            (current + 1) %
+            homeData.facts.length
+        );
+      }, 6000);
+
+    return () =>
+      clearInterval(interval);
+  }, []);
+
+  const currentFact =
+    homeData.facts[factIndex];
+
+  /* =======================================================
+     NAVIGATION
+  ======================================================= */
+
+  const handleAvatarPress = () => {
+    router.push('/profile');
+  };
+
+  const handleSearch = () => {
+    /*
+      Backend version:
+
+      router.push({
+        pathname: '/search',
+        params: {
+          q: searchText,
+        },
+      });
+    */
+  };
+
+  const handleFactPress = () => {
+    /*
+      Backend version:
+
+      router.push(
+        `/information/${currentFact.id}`
+      );
+    */
+  };
+
+  return (
+    <SafeAreaView
+      style={styles.safeArea}
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={
+          COLORS.background
+        }
+      />
+
+      <View style={styles.screen}>
+
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
+        {/*
+        <HeadBar
+          avatar={require(
+            '../assets/images/jeno1.jpg'
           )}
-          ListEmptyComponent={<Text style={styles.empty}>No posts found.</Text>}
+          onAvatarPress={
+            handleAvatarPress
+          }
         />
-      )}
-    </View>
+        */}
+
+        {/* =================================================
+            CONTENT
+        ================================================= */}
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={
+            styles.scrollContent
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
+          keyboardShouldPersistTaps="handled"
+        >
+
+          {/* =================================================
+              SEARCH
+          ================================================= */}
+
+          <View
+            style={
+              styles.searchContainer
+            }
+          >
+            <Ionicons
+              name="search-outline"
+              size={14}
+              color="#77716D"
+            />
+
+            <TextInput
+              style={
+                styles.searchInput
+              }
+              placeholder="Search buildings, cafes or loops..."
+              placeholderTextColor="#99928E"
+              returnKeyType="search"
+              onSubmitEditing={
+                handleSearch
+              }
+            />
+
+            <Ionicons
+              name="options-outline"
+              size={15}
+              color={
+                COLORS.textLight
+              }
+            />
+          </View>
+
+          {/* =================================================
+              DID YOU KNOW HERO
+          ================================================= */}
+
+          <Animated.View
+            style={[
+              styles.heroWrapper,
+
+              {
+                transform: [
+                  {
+                    translateY:
+                      floatAnimation,
+                  },
+                ],
+              },
+            ]}
+          >
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.heroCard,
+
+                pressed &&
+                  styles.heroPressed,
+              ]}
+              onPress={
+                handleFactPress
+              }
+            >
+
+              {/* ===========================================
+                  DECORATIVE CIRCLES
+              =========================================== */}
+
+              <View
+                style={
+                  styles.decorCircleLarge
+                }
+              />
+
+              <View
+                style={
+                  styles.decorCircleSmall
+                }
+              />
+
+              <View
+                style={
+                  styles.decorCircleTiny
+                }
+              />
+
+              {/* ===========================================
+                  TOP
+              =========================================== */}
+
+              <View
+                style={
+                  styles.heroTopRow
+                }
+              >
+
+                <View
+                  style={
+                    styles.heroIcon
+                  }
+                >
+                  <Ionicons
+                    name={
+                      currentFact.icon
+                    }
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.heroLabelContainer
+                  }
+                >
+
+                  <Text
+                    style={
+                      styles.heroLabel
+                    }
+                  >
+                    DID YOU KNOW?
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.heroCategory
+                    }
+                  >
+                    {
+                      currentFact.category
+                    }
+                  </Text>
+
+                </View>
+
+                <View
+                  style={
+                    styles.heroSparkle
+                  }
+                >
+                  <Ionicons
+                    name="sparkles"
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                </View>
+
+              </View>
+
+              {/* ===========================================
+                  TITLE
+              =========================================== */}
+
+              <Text
+                style={
+                  styles.heroTitle
+                }
+                numberOfLines={3}
+              >
+                {
+                  currentFact.title
+                }
+              </Text>
+
+              {/* ===========================================
+                  DESCRIPTION
+              =========================================== */}
+
+              <Text
+                style={
+                  styles.heroDescription
+                }
+                numberOfLines={3}
+              >
+                {
+                  currentFact.description
+                }
+              </Text>
+
+              {/* ===========================================
+                  BOTTOM
+              =========================================== */}
+
+              <View
+                style={
+                  styles.heroBottomRow
+                }
+              >
+
+                <View
+                  style={
+                    styles.factIndicators
+                  }
+                >
+
+                  {homeData.facts.map(
+                    (_, index) => (
+                      <View
+                        key={index}
+                        style={[
+                          styles.factDot,
+
+                          index ===
+                            factIndex &&
+                            styles.factDotActive,
+                        ]}
+                      />
+                    )
+                  )}
+
+                </View>
+
+                <View
+                  style={
+                    styles.heroReadMore
+                  }
+                >
+
+                  <Text
+                    style={
+                      styles.heroReadText
+                    }
+                  >
+                    Explore
+                  </Text>
+
+                  <Ionicons
+                    name="arrow-forward"
+                    size={14}
+                    color={
+                      COLORS.orange
+                    }
+                  />
+
+                </View>
+
+              </View>
+
+            </Pressable>
+
+          </Animated.View>
+
+          {/* =================================================
+              QUICK ACCESS
+          ================================================= */}
+
+          <View
+            style={
+              styles.sectionHeader
+            }
+          >
+
+            <View>
+              <Text
+                style={
+                  styles.sectionTitle
+                }
+              >
+                Quick Access
+              </Text>
+
+              <Text
+                style={
+                  styles.sectionSubtitle
+                }
+              >
+                Useful information for your campus life
+              </Text>
+            </View>
+
+            <Ionicons
+              name="grid-outline"
+              size={17}
+              color={
+                COLORS.textLight
+              }
+            />
+
+          </View>
+
+          {/* =================================================
+              INFORMATION CARDS
+          ================================================= */}
+
+          <View
+            style={
+              styles.cardsContainer
+            }
+          >
+
+            {homeData.cards.map(
+              (card) => (
+                <InformationCard
+                  key={card.id}
+                  card={card}
+                  onPress={() => {
+                    /*
+                      Backend / Navigation
+
+                      switch(card.id) {
+                        case 'wifi':
+                          router.push(...)
+                          break
+
+                        case 'bus':
+                          router.push(...)
+                          break
+                      }
+                    */
+                  }}
+                />
+              )
+            )}
+
+          </View>
+
+          <View
+            style={
+              styles.bottomSpace
+            }
+          />
+
+        </ScrollView>
+
+        {/* =================================================
+            BOTTOM NAV
+        ================================================= */}
+
+        {/*
+        <BottomNav />
+        */}
+
+      </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20 },
-  title: { fontSize: 20, fontWeight: '700', color: '#1a1a1a', marginTop: 8, marginBottom: 12 },
-  loader: { marginTop: 40 },
-  error: { textAlign: 'center', color: '#D64545', marginTop: 40 },
-  list: { paddingBottom: 20 },
-  postCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12 },
-  author: { fontSize: 13, fontWeight: '700', color: '#333' },
-  category: { fontSize: 11, color: '#E86A33', marginTop: 4 },
-  content: { fontSize: 14, lineHeight: 21, color: '#555', marginTop: 8 },
-  empty: { textAlign: 'center', color: '#999', marginTop: 40 },
-});
+/* =========================================================
+   INFORMATION CARD
+========================================================= */
+
+function InformationCard({
+  card,
+  onPress,
+}: {
+  card: HomeCard;
+  onPress?: () => void;
+}) {
+
+  const iconBackground =
+    card.type === 'wifi'
+      ? COLORS.wifi
+      : card.type === 'bus'
+        ? COLORS.bus
+        : COLORS.work;
+
+  const iconColor =
+    card.type === 'wifi'
+      ? COLORS.blue
+      : card.type === 'bus'
+        ? COLORS.orange
+        : '#77716D';
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={onPress}
+      style={
+        styles.infoCard
+      }
+    >
+
+      <View
+        style={[
+          styles.infoIcon,
+          {
+            backgroundColor:
+              iconBackground,
+          },
+        ]}
+      >
+        <Ionicons
+          name={card.icon}
+          size={16}
+          color={iconColor}
+        />
+      </View>
+
+      <View
+        style={
+          styles.infoContent
+        }
+      >
+
+        <Text
+          style={
+            styles.infoTitle
+          }
+        >
+          {card.title}
+        </Text>
+
+        <Text
+          style={
+            styles.infoDescription
+          }
+        >
+          {card.description}
+        </Text>
+
+      </View>
+
+      <View
+        style={
+          styles.infoArrow
+        }
+      >
+        <Ionicons
+          name="chevron-forward"
+          size={14}
+          color={
+            COLORS.textLight
+          }
+        />
+      </View>
+
+    </TouchableOpacity>
+  );
+}
+
+/* =========================================================
+   STYLES
+========================================================= */
+
+const styles =
+  StyleSheet.create({
+
+    /* =====================================================
+       SCREEN
+    ===================================================== */
+
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        COLORS.background,
+    },
+
+    screen: {
+      flex: 1,
+      backgroundColor:
+        COLORS.background,
+    },
+
+    scroll: {
+      flex: 1,
+    },
+
+    scrollContent: {
+      paddingHorizontal: 10,
+      paddingTop: 7,
+      paddingBottom: 20,
+    },
+
+    /* =====================================================
+       SEARCH
+    ===================================================== */
+
+    searchContainer: {
+      height: 38,
+
+      width: '100%',
+
+      borderRadius: 19,
+
+      backgroundColor:
+        COLORS.white,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      paddingHorizontal: 12,
+
+      marginBottom: 12,
+
+      borderWidth: 0.5,
+
+      borderColor:
+        '#F0EBE8',
+
+      shadowColor:
+        '#AFA7A2',
+
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+
+      shadowOpacity: 0.04,
+
+      shadowRadius: 5,
+
+      elevation: 1,
+    },
+
+    searchInput: {
+      flex: 1,
+
+      height: 38,
+
+      marginLeft: 7,
+
+      marginRight: 6,
+
+      paddingVertical: 0,
+
+      fontSize: 9,
+
+      color:
+        COLORS.text,
+    },
+
+    /* =====================================================
+       HERO
+    ===================================================== */
+
+    heroWrapper: {
+      width: '100%',
+
+      marginBottom: 16,
+    },
+
+    heroCard: {
+      width: '100%',
+
+      minHeight: 181,
+
+      borderRadius: 28,
+
+      backgroundColor:
+        COLORS.orange,
+
+      paddingHorizontal: 15,
+
+      paddingTop: 14,
+
+      paddingBottom: 12,
+
+      overflow: 'hidden',
+
+      position: 'relative',
+
+      shadowColor:
+        '#C85E25',
+
+      shadowOffset: {
+        width: 0,
+        height: 7,
+      },
+
+      shadowOpacity: 0.20,
+
+      shadowRadius: 10,
+
+      elevation: 5,
+    },
+
+    heroPressed: {
+      transform: [
+        {
+          scale: 0.985,
+        },
+      ],
+
+      opacity: 0.96,
+    },
+
+    /* =====================================================
+       DECORATIVE CIRCLES
+    ===================================================== */
+
+    decorCircleLarge: {
+      position: 'absolute',
+
+      width: 145,
+
+      height: 145,
+
+      borderRadius: 73,
+
+      right: -55,
+
+      top: -62,
+
+      backgroundColor:
+        'rgba(255,255,255,0.10)',
+    },
+
+    decorCircleSmall: {
+      position: 'absolute',
+
+      width: 78,
+
+      height: 78,
+
+      borderRadius: 39,
+
+      right: 20,
+
+      bottom: -40,
+
+      backgroundColor:
+        'rgba(255,255,255,0.08)',
+    },
+
+    decorCircleTiny: {
+      position: 'absolute',
+
+      width: 34,
+
+      height: 34,
+
+      borderRadius: 17,
+
+      left: -13,
+
+      bottom: 20,
+
+      backgroundColor:
+        'rgba(255,255,255,0.08)',
+    },
+
+    /* =====================================================
+       HERO TOP
+    ===================================================== */
+
+    heroTopRow: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      marginBottom: 12,
+    },
+
+    heroIcon: {
+      width: 39,
+
+      height: 39,
+
+      borderRadius: 14,
+
+      backgroundColor:
+        'rgba(255,255,255,0.20)',
+
+      alignItems: 'center',
+
+      justifyContent: 'center',
+
+      marginRight: 9,
+    },
+
+    heroLabelContainer: {
+      flex: 1,
+    },
+
+    heroLabel: {
+      fontSize: 8,
+
+      fontWeight: '900',
+
+      color: '#FFFFFF',
+
+      letterSpacing: 0.8,
+    },
+
+    heroCategory: {
+      fontSize: 6.8,
+
+      fontWeight: '600',
+
+      color:
+        'rgba(255,255,255,0.78)',
+
+      marginTop: 2,
+
+      letterSpacing: 0.5,
+    },
+
+    heroSparkle: {
+      width: 31,
+
+      height: 31,
+
+      borderRadius: 16,
+
+      backgroundColor:
+        'rgba(255,255,255,0.14)',
+
+      alignItems: 'center',
+
+      justifyContent: 'center',
+    },
+
+    /* =====================================================
+       HERO TEXT
+    ===================================================== */
+
+    heroTitle: {
+      maxWidth: '92%',
+
+      fontSize: 13,
+
+      lineHeight: 18,
+
+      fontWeight: '800',
+
+      color: '#FFFFFF',
+
+      marginBottom: 7,
+    },
+
+    heroDescription: {
+      maxWidth: '90%',
+
+      fontSize: 7.8,
+
+      lineHeight: 11.5,
+
+      fontWeight: '400',
+
+      color:
+        'rgba(255,255,255,0.90)',
+    },
+
+    /* =====================================================
+       HERO BOTTOM
+    ===================================================== */
+
+    heroBottomRow: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'space-between',
+
+      marginTop: 12,
+    },
+
+    factIndicators: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      gap: 4,
+    },
+
+    factDot: {
+      width: 5,
+
+      height: 5,
+
+      borderRadius: 3,
+
+      backgroundColor:
+        'rgba(255,255,255,0.40)',
+    },
+
+    factDotActive: {
+      width: 17,
+
+      backgroundColor:
+        '#FFFFFF',
+    },
+
+    heroReadMore: {
+      height: 27,
+
+      paddingHorizontal: 10,
+
+      borderRadius: 14,
+
+      backgroundColor:
+        '#FFFFFF',
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent: 'center',
+
+      gap: 4,
+    },
+
+    heroReadText: {
+      fontSize: 7.8,
+
+      fontWeight: '800',
+
+      color:
+        COLORS.orange,
+    },
+
+    /* =====================================================
+       SECTION HEADER
+    ===================================================== */
+
+    sectionHeader: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'space-between',
+
+      marginBottom: 9,
+    },
+
+    sectionTitle: {
+      fontSize: 13.5,
+
+      fontWeight: '800',
+
+      color:
+        COLORS.text,
+    },
+
+    sectionSubtitle: {
+      fontSize: 7.5,
+
+      color:
+        COLORS.textLight,
+
+      marginTop: 2,
+    },
+
+    /* =====================================================
+       INFORMATION CARDS
+    ===================================================== */
+
+    cardsContainer: {
+      width: '100%',
+
+      gap: 9,
+    },
+
+    infoCard: {
+      width: '100%',
+
+      minHeight: 78,
+
+      borderRadius: 24,
+
+      backgroundColor:
+        COLORS.white,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      paddingHorizontal: 10,
+
+      paddingVertical: 10,
+
+      shadowColor:
+        '#AFA7A2',
+
+      shadowOffset: {
+        width: 0,
+        height: 3,
+      },
+
+      shadowOpacity: 0.08,
+
+      shadowRadius: 8,
+
+      elevation: 2,
+    },
+
+    infoIcon: {
+      width: 36,
+
+      height: 36,
+
+      borderRadius: 14,
+
+      alignItems: 'center',
+
+      justifyContent: 'center',
+
+      marginRight: 10,
+    },
+
+    infoContent: {
+      flex: 1,
+
+      paddingRight: 6,
+    },
+
+    infoTitle: {
+      fontSize: 9.5,
+
+      lineHeight: 13,
+
+      fontWeight: '700',
+
+      color:
+        COLORS.text,
+
+      marginBottom: 4,
+    },
+
+    infoDescription: {
+      fontSize: 7.5,
+
+      lineHeight: 10.5,
+
+      fontWeight: '400',
+
+      color:
+        COLORS.textSecondary,
+    },
+
+    infoArrow: {
+      width: 25,
+
+      height: 25,
+
+      borderRadius: 13,
+
+      backgroundColor:
+        '#F7F3F1',
+
+      alignItems: 'center',
+
+      justifyContent: 'center',
+    },
+
+    /* =====================================================
+       BOTTOM
+    ===================================================== */
+
+    bottomSpace: {
+      height: 10,
+    },
+  });
+  
