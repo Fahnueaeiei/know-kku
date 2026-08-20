@@ -25,6 +25,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import ChatbotButton from '../components/ChatbotButton';
+import ChatbotSheet from '../components/ChatbotSheet';
+
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -166,6 +169,8 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<HomeData>(initialHomeData);
 
+  const [chatbotVisible, setChatbotVisible] = useState(false);
+
   /* =======================================================
      FETCH FACTS (Did You Know) FROM BACKEND
      -------------------------------------------------------
@@ -238,7 +243,7 @@ export default function HomeScreen() {
     return () => {
       animation.stop();
     };
-  }, []);
+  }, [floatAnimation]);
 
   /* =======================================================
      AUTO CHANGE DID YOU KNOW
@@ -341,6 +346,10 @@ export default function HomeScreen() {
   if (loading && data.facts.length === 0) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={COLORS.background}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={COLORS.orange} />
           <Text style={styles.loadingText}>Loading...</Text>
@@ -362,6 +371,10 @@ export default function HomeScreen() {
 
       <View style={styles.screen}>
         {/* HeadBar / BottomNav render จาก root _layout.tsx แล้ว ไม่ต้อง render ซ้ำที่นี่ */}
+
+        {/* =================================================
+            MAIN SCROLL
+        ================================================= */}
 
         <ScrollView
           style={styles.scroll}
@@ -394,6 +407,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 onPress={() => setSearchText('')}
                 style={styles.clearButton}
+                activeOpacity={0.7}
               >
                 <Ionicons
                   name="close-circle"
@@ -466,13 +480,15 @@ export default function HomeScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.heroTitle} numberOfLines={3}>
-                    {currentFact.title}
-                  </Text>
+                  <View>
+                    <Text style={styles.heroTitle} numberOfLines={3}>
+                      {currentFact.title}
+                    </Text>
 
-                  <Text style={styles.heroDescription} numberOfLines={2}>
-                    {currentFact.description}
-                  </Text>
+                    <Text style={styles.heroDescription} numberOfLines={2}>
+                      {currentFact.description}
+                    </Text>
+                  </View>
 
                   {/* BOTTOM */}
                   <View style={styles.heroBottomRow}>
@@ -547,8 +563,21 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
+          {/* Extra space so floating button does not cover content */}
           <View style={styles.bottomSpace} />
         </ScrollView>
+
+        {/* =================================================
+            P'DIN-DANG CHATBOT
+            Floating button
+        ================================================= */}
+
+        <ChatbotButton onPress={() => setChatbotVisible(true)} />
+
+        <ChatbotSheet
+          visible={chatbotVisible}
+          onClose={() => setChatbotVisible(false)}
+        />
       </View>
     </SafeAreaView>
   );
@@ -703,7 +732,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 10,
     paddingTop: 10,
-    paddingBottom: 20,
+    paddingBottom: 90,
   },
 
   /* SEARCH */
@@ -1088,7 +1117,7 @@ const styles = StyleSheet.create({
   newsTitle: {
     fontSize: 10.5,
     lineHeight: 15,
-    fontWeight: '750',
+    fontWeight: '700',
     color: COLORS.text,
   },
 
@@ -1124,6 +1153,6 @@ const styles = StyleSheet.create({
   /* BOTTOM */
 
   bottomSpace: {
-    height: 20,
+    height: 30,
   },
 });
