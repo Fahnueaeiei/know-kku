@@ -35,12 +35,31 @@ app.get("/places", async (req, res) => {
 app.get("/places/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const result = await db.query.places.findFirst({ where: eq(places.placeId, id) });
-    if (!result) return res.status(404).json({ error: "Place not found" });
+
+    const result = await db.query.places.findFirst({
+      where: eq(places.placeId, id),
+
+      with: {
+        busLines: {
+          with: {
+            busLine: true,
+          },
+        },
+      },
+    });
+
+    if (!result) {
+      return res.status(404).json({
+        error: "Place not found",
+      });
+    }
+
     res.json(result);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch place" });
+    res.status(500).json({
+      error: "Failed to fetch place",
+    });
   }
 });
 

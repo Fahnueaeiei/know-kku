@@ -1,4 +1,5 @@
 // @ts-nocheck
+
 import React from 'react';
 import {
   View,
@@ -7,14 +8,23 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
+
+/* =========================================================
+   COLORS
+========================================================= */
 
 const COLORS = {
   orange: '#FA7C35',
   inactive: '#77716D',
   white: '#FFFFFF',
 };
+
+/* =========================================================
+   TABS
+========================================================= */
 
 const TABS = [
   {
@@ -43,13 +53,20 @@ const TABS = [
   },
 ];
 
+/* =========================================================
+   BOTTOM NAV
+========================================================= */
+
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
 
   const isActive = (route: string) => {
     if (route === '/') {
-      return pathname === '/' || pathname === '/index';
+      return (
+        pathname === '/' ||
+        pathname === '/index'
+      );
     }
 
     return pathname.startsWith(route);
@@ -58,8 +75,10 @@ export default function BottomNav() {
   return (
     <View style={styles.container}>
       <View style={styles.navInner}>
+
         {TABS.map((tab) => {
-          const active = isActive(tab.route);
+          const active =
+            isActive(tab.route);
 
           return (
             <TouchableOpacity
@@ -72,85 +91,176 @@ export default function BottomNav() {
                 }
               }}
             >
+
+              {/* ICON */}
+
               <View
                 style={[
                   styles.iconContainer,
-                  active && styles.activeIconContainer,
+                  active &&
+                    styles.activeIconContainer,
                 ]}
               >
                 <Ionicons
-                  name={active ? tab.activeIcon : tab.icon}
-                  size={active ? 15 : 16}
-                  color={active ? COLORS.white : COLORS.inactive}
+                  name={
+                    active
+                      ? tab.activeIcon
+                      : tab.icon
+                  }
+                  size={
+                    active
+                      ? 19
+                      : 20
+                  }
+                  color={
+                    active
+                      ? COLORS.white
+                      : COLORS.inactive
+                  }
                 />
               </View>
+
+              {/* LABEL */}
 
               <Text
                 style={[
                   styles.label,
-                  active && styles.activeLabel,
+                  active &&
+                    styles.activeLabel,
                 ]}
               >
                 {tab.label}
               </Text>
+
             </TouchableOpacity>
           );
         })}
+
       </View>
     </View>
   );
 }
 
+/* =========================================================
+   STYLES
+========================================================= */
+
 const styles = StyleSheet.create({
+
+  /* =====================================================
+     CONTAINER
+
+     HeadBar = 58
+     BottomNav ≈ 64–68
+  ===================================================== */
+
   container: {
-    height: Platform.OS === 'ios' ? 59 : 55,
-    backgroundColor: COLORS.white,
+    height:
+      Platform.OS === 'ios'
+        ? 68
+        : 64,
+
+    backgroundColor:
+      COLORS.white,
+
     borderTopWidth: 0.5,
-    borderTopColor: '#EFECEB',
+
+    borderTopColor:
+      '#EFECEB',
   },
+
+  /* =====================================================
+     NAV INNER
+  ===================================================== */
 
   navInner: {
     flex: 1,
+
     flexDirection: 'row',
+
     alignItems: 'flex-start',
-    justifyContent: 'space-around',
-    paddingHorizontal: 9,
-    paddingTop: 5,
+
+    justifyContent:
+      'space-around',
+
+    paddingHorizontal: 12,
+
+    paddingTop: 7,
   },
+
+  /* =====================================================
+     TAB
+  ===================================================== */
 
   tab: {
     flex: 1,
+
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    minHeight: 48,
+
+    justifyContent:
+      'flex-start',
+
+    minHeight: 55,
   },
+
+  /* =====================================================
+     ICON
+  ===================================================== */
 
   iconContainer: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
+    width: 31,
+
+    height: 31,
+
+    borderRadius: 16,
+
     alignItems: 'center',
+
     justifyContent: 'center',
-    marginBottom: 2,
+
+    marginBottom: 3,
   },
+
+  /* =====================================================
+     ACTIVE ICON
+  ===================================================== */
 
   activeIconContainer: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.orange,
+    width: 32,
+
+    height: 32,
+
+    borderRadius: 16,
+
+    backgroundColor:
+      COLORS.orange,
   },
 
+  /* =====================================================
+     LABEL
+  ===================================================== */
+
   label: {
-    fontSize: 7.5,
-    lineHeight: 10,
+    fontSize: 9,
+
+    lineHeight: 12,
+
     fontWeight: '500',
-    color: COLORS.inactive,
+
+    color:
+      COLORS.inactive,
+
     textAlign: 'center',
   },
 
+  /* =====================================================
+     ACTIVE LABEL
+  ===================================================== */
+
   activeLabel: {
-    color: COLORS.orange,
+    color:
+      COLORS.orange,
+
     fontWeight: '700',
   },
 });

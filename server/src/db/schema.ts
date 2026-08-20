@@ -39,6 +39,7 @@ export const places = pgTable("places", {
   name: varchar("name", { length: 255 }).notNull(),
   category: varchar("category", { length: 50 }).notNull(),
   description: text("description"),
+  imageUrl: varchar("image_url", { length: 500 }),
   address: varchar("address", { length: 255 }),
   latitude: decimal("latitude", { precision: 10, scale: 6 }),
   longitude: decimal("longitude", { precision: 10, scale: 6 }),

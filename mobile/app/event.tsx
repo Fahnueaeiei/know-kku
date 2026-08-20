@@ -16,6 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { getEvents } from "../api/api";
 import EventCard from "../components/EventCard";
+import { useRouter } from "expo-router";
 
 /* =========================================================
    TYPES
@@ -72,6 +73,7 @@ const COLORS = {
 ========================================================= */
 
 export default function EventScreen() {
+  const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
 
   const [loading, setLoading] =
@@ -150,7 +152,6 @@ export default function EventScreen() {
     return [
       "All Events",
       ...backendCategories,
-      "Favorites",
     ];
   }, [events]);
 
@@ -234,12 +235,12 @@ export default function EventScreen() {
     setEvents((previousEvents) =>
       previousEvents.map((item) =>
         item.eventId ===
-        event.eventId
+          event.eventId
           ? {
-              ...item,
-              favorite:
-                newFavoriteState,
-            }
+            ...item,
+            favorite:
+              newFavoriteState,
+          }
           : item
       )
     );
@@ -303,11 +304,10 @@ export default function EventScreen() {
 ${event.title}
 
 📅 ${event.date ?? ""}
-⏰ ${event.startTime ?? ""}${
-          event.endTime
+⏰ ${event.startTime ?? ""}${event.endTime
             ? ` - ${event.endTime}`
             : ""
-        }
+          }
 
 📍 ${event.location ?? ""}
 
@@ -356,87 +356,63 @@ ${event.sourceUrl ?? ""}
 
         {/* ================= CATEGORY ================= */}
 
-        <View
-          style={
-            styles.sectionHeader
-          }
-        >
-          <Text
-            style={styles.sectionTitle}
-          >
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>
             Categories
           </Text>
 
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={COLORS.orange}
-          />
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={[
+              styles.favoriteIconButton,
+              activeCategory === "Favorites" &&
+              styles.favoriteIconButtonActive,
+            ]}
+            onPress={() =>
+              setActiveCategory(
+                activeCategory === "Favorites"
+                  ? "All Events"
+                  : "Favorites"
+              )
+            }
+          >
+            <Ionicons
+              name={
+                activeCategory === "Favorites"
+                  ? "heart"
+                  : "heart-outline"
+              }
+              size={18}
+              color={COLORS.favorite}
+            />
+          </TouchableOpacity>
         </View>
 
         <FlatList
           horizontal
           data={categories}
           keyExtractor={(item) => item}
-          renderItem={({
-            item,
-          }) => {
+          renderItem={({ item }) => {
             const active =
-              item ===
-              activeCategory;
-
-            const isFavorite =
-              item ===
-              "Favorites";
+              item === activeCategory;
 
             return (
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={[
                   styles.categoryChip,
-
                   active &&
-                    styles.categoryChipActive,
-
-                  isFavorite &&
-                    styles.favoriteChip,
-
-                  isFavorite &&
-                    active &&
-                    styles.favoriteChipActive,
+                  styles.categoryChipActive,
                 ]}
                 onPress={() =>
-                  setActiveCategory(
-                    item
-                  )
+                  setActiveCategory(item)
                 }
               >
-                {isFavorite && (
-                  <Ionicons
-                    name={
-                      active
-                        ? "heart"
-                        : "heart-outline"
-                    }
-                    size={13}
-                    color={
-                      active
-                        ? "#FFFFFF"
-                        : COLORS.favorite
-                    }
-                  />
-                )}
-
                 <Text
                   style={[
                     styles.categoryText,
-
                     active &&
-                      styles.categoryTextActive,
-
-                    isFavorite &&
-                      !active &&
-                      styles.favoriteText,
+                    styles.categoryTextActive,
                   ]}
                 >
                   {item}
@@ -461,12 +437,12 @@ ${event.sourceUrl ?? ""}
             style={styles.resultTitle}
           >
             {activeCategory ===
-            "All Events"
+              "All Events"
               ? "Upcoming Events"
               : activeCategory ===
                 "Favorites"
-              ? "Favorite Events"
-              : activeCategory}
+                ? "Favorite Events"
+                : activeCategory}
           </Text>
 
           <Text
@@ -512,10 +488,10 @@ ${event.sourceUrl ?? ""}
         renderItem={({ item }) => (
           <EventCard
             event={item}
-            onPress={() => {}}
-            onToggleFavorite={
-              toggleFavorite
-            }
+            onPress={() => {
+              router.push(`/event/${item.eventId}`);
+            }}
+            onToggleFavorite={toggleFavorite}
             onJoin={joinEvent}
             onShare={shareEvent}
           />
@@ -572,7 +548,7 @@ ${event.sourceUrl ?? ""}
               <Ionicons
                 name={
                   activeCategory ===
-                  "Favorites"
+                    "Favorites"
                     ? "heart-outline"
                     : "calendar-outline"
                 }
@@ -586,7 +562,7 @@ ${event.sourceUrl ?? ""}
                 }
               >
                 {activeCategory ===
-                "Favorites"
+                  "Favorites"
                   ? "No favorite events yet."
                   : "No events found."}
               </Text>
@@ -660,6 +636,22 @@ const styles =
     },
 
     /* ================= CATEGORY ================= */
+
+    favoriteIconButton: {
+      width: 30,
+      height: 30,
+
+      borderRadius: 15,
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      backgroundColor: "#FFF1F2",
+    },
+
+    favoriteIconButtonActive: {
+      backgroundColor: "#FFE3E5",
+    },
 
     sectionHeader: {
       flexDirection: "row",

@@ -17,15 +17,13 @@ import {
   StatusBar,
   Animated,
   Pressable,
+  Linking,
+  Image,
   ActivityIndicator,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-
-import HeadBar from '../components/HeadBar';
-import BottomNav from '../components/BottomNav';
-
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -48,66 +46,108 @@ const COLORS = {
 
   border: '#EFE8E4',
 
-  wifi: '#E9F7FF',
-  bus: '#FFF0E8',
-  work: '#F2EEEC',
-
   blue: '#43A9D9',
   green: '#55A76A',
+
+  reminder: '#FFF7E8',
+  reminderIcon: '#F3A72F',
+
+  newsBackground: '#F3EFED',
 };
 
 /* =========================================================
    TYPES
 ========================================================= */
 
+/**
+ * Content ที่ใช้ใน "Did You Know?"
+ * มาจาก backend endpoint GET /news
+ */
 type HomeFact = {
   id: string;
   category: string;
   title: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
+  sourceUrl?: string;
+  imageUrl?: string;
 };
 
-type HomeCard = {
+/**
+ * Checklist Summary
+ * TODO: ยังไม่มี backend endpoint — ปัจจุบันเป็น mock
+ */
+type ChecklistSummary = {
+  todayCount: number;
+  overdueCount?: number;
+};
+
+/**
+ * ข่าวล่าสุด
+ * TODO: ยังไม่มี backend endpoint — ปัจจุบันเป็น mock
+ */
+type HomeNews = {
   id: string;
-  type: 'wifi' | 'bus' | 'workspace';
   title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  category: string;
+  publishedAt: string;
+  imageUrl?: string;
+  sourceUrl?: string;
+};
+
+type HomeData = {
+  facts: HomeFact[];
+  checklist: ChecklistSummary;
+  latestNews: HomeNews[];
 };
 
 /* =========================================================
-   STATIC CARDS
+   INITIAL / FALLBACK DATA
    ---------------------------------------------------------
-   ยังไม่มี table รองรับใน schema จึงคงเป็น static ไปก่อน
+   facts: เริ่มเป็น [] แล้วโหลดจริงจาก GET /news
+   checklist / latestNews: ยังไม่มี backend endpoint
+   จึงคงเป็น mock ไปก่อน — TODO: เปลี่ยนเป็น fetch เมื่อ
+   backend พร้อม (เช่น GET /checklist/summary, GET /news/latest)
 ========================================================= */
 
-const staticCards: HomeCard[] = [
-  {
-    id: 'wifi',
-    type: 'wifi',
-    title: 'Free Wi-Fi everywhere on campus',
-    description:
-      'Connect seamlessly across all faculty buildings using your student account.',
-    icon: 'wifi',
+const initialHomeData: HomeData = {
+  facts: [],
+
+  checklist: {
+    todayCount: 2,
+    overdueCount: 0,
   },
-  {
-    id: 'bus',
-    type: 'bus',
-    title: 'Shuttle Bus routes simplified',
-    description:
-      'Live tracking available for all major loops directly in the app map.',
-    icon: 'bus',
-  },
-  {
-    id: 'workspace',
-    type: 'workspace',
-    title: 'Co-working spaces in every faculty',
-    description:
-      'Discover hidden study spots and quiet places near your current class location.',
-    icon: 'cafe',
-  },
-];
+
+  latestNews: [
+    {
+      id: 'news-001',
+      title: 'เปิดลงทะเบียนกิจกรรมสำหรับนักศึกษาใหม่',
+      category: 'ANNOUNCEMENT',
+      publishedAt: '20 Aug 2026',
+      imageUrl:
+        'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=900&q=80',
+      sourceUrl: 'https://www.kku.ac.th/',
+    },
+    {
+      id: 'news-002',
+      title: 'กำหนดการสำคัญสำหรับนักศึกษา ประจำภาคการศึกษา',
+      category: 'ACADEMIC',
+      publishedAt: '19 Aug 2026',
+      imageUrl:
+        'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80',
+      sourceUrl: 'https://www.kku.ac.th/',
+    },
+    {
+      id: 'news-003',
+      title: 'กิจกรรมและข่าวสารใหม่จากมหาวิทยาลัยขอนแก่น',
+      category: 'CAMPUS',
+      publishedAt: '18 Aug 2026',
+      imageUrl:
+        'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=900&q=80',
+      sourceUrl: 'https://www.kku.ac.th/',
+    },
+  ],
+};
 
 /* =========================================================
    HOME SCREEN
@@ -117,16 +157,24 @@ export default function HomeScreen() {
   const router = useRouter();
 
   /* =======================================================
-     NEWS / FACT STATE (from DB)
+     STATE
   ======================================================= */
 
-  const [facts, setFacts] = useState<HomeFact[]>([]);
+  const [searchText, setSearchText] = useState('');
   const [factIndex, setFactIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<HomeData>(initialHomeData);
+
+  /* =======================================================
+     FETCH FACTS (Did You Know) FROM BACKEND
+     -------------------------------------------------------
+     checklist / latestNews ยังใช้ mock อยู่ — merge เฉพาะ
+     facts เข้ากับ data เดิม เพื่อไม่ทับ mock ส่วนอื่น
+  ======================================================= */
 
   useEffect(() => {
-    const fetchNews = async () => {
+    const fetchFacts = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -137,9 +185,9 @@ export default function HomeScreen() {
           throw new Error(`Request failed: ${res.status}`);
         }
 
-        const data = await res.json();
+        const raw = await res.json();
 
-        const mapped: HomeFact[] = data.map((item: any) => ({
+        const facts: HomeFact[] = raw.map((item: any) => ({
           id: String(item.newsId),
           category: item.category ?? 'NEWS',
           title: item.title,
@@ -147,18 +195,20 @@ export default function HomeScreen() {
           icon:
             (item.icon as keyof typeof Ionicons.glyphMap) ||
             'bulb-outline',
+          sourceUrl: item.sourceUrl,
+          imageUrl: item.imageUrl,
         }));
 
-        setFacts(mapped);
+        setData((prev) => ({ ...prev, facts }));
       } catch (err) {
-        console.error('fetchNews error:', err);
+        console.error('fetchFacts error:', err);
         setError('โหลดข่าวสารไม่สำเร็จ');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchNews();
+    fetchFacts();
   }, []);
 
   /* =======================================================
@@ -171,11 +221,10 @@ export default function HomeScreen() {
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnimation, {
-          toValue: -4,
+          toValue: -3,
           duration: 1800,
           useNativeDriver: true,
         }),
-
         Animated.timing(floatAnimation, {
           toValue: 0,
           duration: 1800,
@@ -192,43 +241,117 @@ export default function HomeScreen() {
   }, []);
 
   /* =======================================================
-     AUTO CHANGE FACT
+     AUTO CHANGE DID YOU KNOW
   ======================================================= */
 
   useEffect(() => {
-    if (facts.length === 0) return;
+    if (!data.facts || data.facts.length <= 1) {
+      return;
+    }
 
     const interval = setInterval(() => {
-      setFactIndex((current) => (current + 1) % facts.length);
+      setFactIndex((current) => (current + 1) % data.facts.length);
     }, 6000);
 
     return () => clearInterval(interval);
-  }, [facts]);
+  }, [data.facts.length]);
 
-  const currentFact = facts[factIndex];
+  const currentFact = data.facts?.[factIndex];
 
   /* =======================================================
-     NAVIGATION
+     SEARCH
   ======================================================= */
 
-  const handleAvatarPress = () => {
-    router.push('/profile');
-  };
-
   const handleSearch = () => {
-    /*
-      router.push({
-        pathname: '/search',
-        params: { q: searchText },
-      });
-    */
+    const query = searchText.trim();
+
+    if (!query) {
+      return;
+    }
+
+    router.push({
+      pathname: '/search',
+      params: { q: query },
+    });
   };
 
-  const handleFactPress = () => {
-    if (currentFact) {
-      // router.push(`/information/${currentFact.id}`);
+  /* =======================================================
+     OPEN EXTERNAL SOURCE
+  ======================================================= */
+
+  const openExternalLink = async (url?: string) => {
+    if (!url) {
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+
+      if (supported) {
+        await Linking.openURL(url);
+      }
+    } catch (err) {
+      console.log('Unable to open URL:', err);
     }
   };
+
+  /* =======================================================
+     FACT PRESS
+  ======================================================= */
+
+  const handleFactPress = () => {
+    if (!currentFact) {
+      return;
+    }
+
+    if (currentFact.sourceUrl) {
+      openExternalLink(currentFact.sourceUrl);
+      return;
+    }
+
+    // ถ้าในอนาคตมีหน้า Detail:
+    // router.push(`/information/${currentFact.id}`);
+  };
+
+  /* =======================================================
+     CHECKLIST PRESS
+  ======================================================= */
+
+  const handleChecklistPress = () => {
+    router.push('/checklist');
+  };
+
+  /* =======================================================
+     NEWS PRESS
+  ======================================================= */
+
+  const handleNewsPress = (news: HomeNews) => {
+    if (news.sourceUrl) {
+      openExternalLink(news.sourceUrl);
+      return;
+    }
+
+    // หรือในอนาคต: router.push(`/news/${news.id}`);
+  };
+
+  /* =======================================================
+     LOADING (initial load only)
+  ======================================================= */
+
+  if (loading && data.facts.length === 0) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={COLORS.orange} />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -251,42 +374,51 @@ export default function HomeScreen() {
           ================================================= */}
 
           <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={14} color="#77716D" />
+            <Ionicons
+              name="search-outline"
+              size={17}
+              color={COLORS.textLight}
+            />
 
             <TextInput
+              value={searchText}
+              onChangeText={setSearchText}
               style={styles.searchInput}
-              placeholder="Search buildings, cafes or loops..."
+              placeholder="Search all..."
               placeholderTextColor="#99928E"
               returnKeyType="search"
               onSubmitEditing={handleSearch}
             />
 
-            <Ionicons
-              name="options-outline"
-              size={15}
-              color={COLORS.textLight}
-            />
+            {searchText.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchText('')}
+                style={styles.clearButton}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={16}
+                  color={COLORS.textLight}
+                />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* =================================================
-              DID YOU KNOW HERO
+              DID YOU KNOW
           ================================================= */}
 
-          <Animated.View
-            style={[
-              styles.heroWrapper,
-              { transform: [{ translateY: floatAnimation }] },
-            ]}
-          >
-            {loading ? (
-              <View style={[styles.heroCard, styles.heroCenter]}>
-                <ActivityIndicator color="#FFFFFF" />
-              </View>
-            ) : error ? (
-              <View style={[styles.heroCard, styles.heroCenter]}>
-                <Text style={styles.heroErrorText}>{error}</Text>
-              </View>
-            ) : currentFact ? (
+          {error && !currentFact ? (
+            <View style={[styles.heroCard, styles.heroCenter]}>
+              <Text style={styles.heroErrorText}>{error}</Text>
+            </View>
+          ) : currentFact ? (
+            <Animated.View
+              style={[
+                styles.heroWrapper,
+                { transform: [{ translateY: floatAnimation }] },
+              ]}
+            >
               <Pressable
                 style={({ pressed }) => [
                   styles.heroCard,
@@ -294,116 +426,125 @@ export default function HomeScreen() {
                 ]}
                 onPress={handleFactPress}
               >
-                {/* DECORATIVE CIRCLES */}
-                <View style={styles.decorCircleLarge} />
-                <View style={styles.decorCircleSmall} />
-                <View style={styles.decorCircleTiny} />
-
-                {/* TOP */}
-                <View style={styles.heroTopRow}>
-                  <View style={styles.heroIcon}>
+                {/* IMAGE */}
+                {currentFact.imageUrl ? (
+                  <Image
+                    source={{ uri: currentFact.imageUrl }}
+                    style={styles.heroImage}
+                  />
+                ) : (
+                  <View style={styles.heroImagePlaceholder}>
                     <Ionicons
                       name={currentFact.icon}
-                      size={20}
+                      size={42}
                       color="#FFFFFF"
                     />
                   </View>
+                )}
 
-                  <View style={styles.heroLabelContainer}>
-                    <Text style={styles.heroLabel}>DID YOU KNOW?</Text>
-                    <Text style={styles.heroCategory}>
-                      {currentFact.category}
-                    </Text>
-                  </View>
+                {/* IMAGE OVERLAY */}
+                <View style={styles.heroOverlay} />
 
-                  <View style={styles.heroSparkle}>
-                    <Ionicons name="sparkles" size={16} color="#FFFFFF" />
-                  </View>
-                </View>
-
-                {/* TITLE */}
-                <Text style={styles.heroTitle} numberOfLines={3}>
-                  {currentFact.title}
-                </Text>
-
-                {/* DESCRIPTION */}
-                <Text style={styles.heroDescription} numberOfLines={3}>
-                  {currentFact.description}
-                </Text>
-
-                {/* BOTTOM */}
-                <View style={styles.heroBottomRow}>
-                  <View style={styles.factIndicators}>
-                    {facts.map((_, index) => (
-                      <View
-                        key={index}
-                        style={[
-                          styles.factDot,
-                          index === factIndex && styles.factDotActive,
-                        ]}
+                {/* CONTENT */}
+                <View style={styles.heroContent}>
+                  <View style={styles.heroTopRow}>
+                    <View style={styles.heroBadge}>
+                      <Ionicons
+                        name="bulb-outline"
+                        size={13}
+                        color={COLORS.orange}
                       />
-                    ))}
+                      <Text style={styles.heroBadgeText}>
+                        DID YOU KNOW?
+                      </Text>
+                    </View>
+
+                    <View style={styles.heroCategoryBadge}>
+                      <Text style={styles.heroCategoryText}>
+                        {currentFact.category}
+                      </Text>
+                    </View>
                   </View>
 
-                  <View style={styles.heroReadMore}>
-                    <Text style={styles.heroReadText}>Explore</Text>
-                    <Ionicons
-                      name="arrow-forward"
-                      size={14}
-                      color={COLORS.orange}
-                    />
+                  <Text style={styles.heroTitle} numberOfLines={3}>
+                    {currentFact.title}
+                  </Text>
+
+                  <Text style={styles.heroDescription} numberOfLines={2}>
+                    {currentFact.description}
+                  </Text>
+
+                  {/* BOTTOM */}
+                  <View style={styles.heroBottomRow}>
+                    <View style={styles.factIndicators}>
+                      {data.facts.map((_, index) => (
+                        <View
+                          key={index}
+                          style={[
+                            styles.factDot,
+                            index === factIndex && styles.factDotActive,
+                          ]}
+                        />
+                      ))}
+                    </View>
+
+                    <View style={styles.heroReadMore}>
+                      <Text style={styles.heroReadText}>ดูรายละเอียด</Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={13}
+                        color={COLORS.orange}
+                      />
+                    </View>
                   </View>
                 </View>
               </Pressable>
-            ) : (
-              <View style={[styles.heroCard, styles.heroCenter]}>
-                <Text style={styles.heroErrorText}>ยังไม่มีข่าวสาร</Text>
-              </View>
-            )}
-          </Animated.View>
+            </Animated.View>
+          ) : null}
 
           {/* =================================================
-              QUICK ACCESS
+              TODAY REMINDER
           ================================================= */}
 
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Quick Access</Text>
-              <Text style={styles.sectionSubtitle}>
-                Useful information for your campus life
-              </Text>
+          <TodayReminder
+            checklist={data.checklist}
+            onPress={handleChecklistPress}
+          />
+
+          {/* =================================================
+              LATEST NEWS
+          ================================================= */}
+
+          <View style={styles.newsSection}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>ข่าวล่าสุด</Text>
+                <Text style={styles.sectionSubtitle}>
+                  เรื่องราวที่น่าสนใจจาก KKU
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => router.push('/news')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.seeAllText}>ดูทั้งหมด</Text>
+              </TouchableOpacity>
             </View>
 
-            <Ionicons
-              name="grid-outline"
-              size={17}
-              color={COLORS.textLight}
-            />
-          </View>
-
-          {/* =================================================
-              INFORMATION CARDS
-          ================================================= */}
-
-          <View style={styles.cardsContainer}>
-            {staticCards.map((card) => (
-              <InformationCard
-                key={card.id}
-                card={card}
-                onPress={() => {
-                  /*
-                    switch (card.id) {
-                      case 'wifi':
-                        router.push(...)
-                        break
-                      case 'bus':
-                        router.push(...)
-                        break
-                    }
-                  */
-                }}
-              />
-            ))}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.newsScrollContent}
+            >
+              {data.latestNews.map((news) => (
+                <NewsCard
+                  key={news.id}
+                  news={news}
+                  onPress={() => handleNewsPress(news)}
+                />
+              ))}
+            </ScrollView>
           </View>
 
           <View style={styles.bottomSpace} />
@@ -414,53 +555,127 @@ export default function HomeScreen() {
 }
 
 /* =========================================================
-   INFORMATION CARD
+   TODAY REMINDER
 ========================================================= */
 
-function InformationCard({
-  card,
+function TodayReminder({
+  checklist,
   onPress,
 }: {
-  card: HomeCard;
+  checklist: ChecklistSummary;
   onPress?: () => void;
 }) {
-  const iconBackground =
-    card.type === 'wifi'
-      ? COLORS.wifi
-      : card.type === 'bus'
-        ? COLORS.bus
-        : COLORS.work;
+  const count = checklist?.todayCount || 0;
+  const overdue = checklist?.overdueCount || 0;
 
-  const iconColor =
-    card.type === 'wifi'
-      ? COLORS.blue
-      : card.type === 'bus'
-        ? COLORS.orange
-        : '#77716D';
+  if (count === 0) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={onPress}
+        style={styles.reminderEmpty}
+      >
+        <View style={styles.reminderIconEmpty}>
+          <Ionicons name="checkmark" size={15} color={COLORS.green} />
+        </View>
+
+        <View style={styles.reminderContent}>
+          <Text style={styles.reminderTitleEmpty}>
+            วันนี้ยังไม่มีรายการที่ต้องทำ ✨
+          </Text>
+          <Text style={styles.reminderSubtitle}>ดู Checklist ของคุณ</Text>
+        </View>
+
+        <Ionicons
+          name="chevron-forward"
+          size={16}
+          color={COLORS.textLight}
+        />
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
-      activeOpacity={0.82}
+      activeOpacity={0.8}
       onPress={onPress}
-      style={styles.infoCard}
+      style={styles.reminderCard}
     >
-      <View
-        style={[styles.infoIcon, { backgroundColor: iconBackground }]}
-      >
-        <Ionicons name={card.icon} size={16} color={iconColor} />
+      <View style={styles.reminderIcon}>
+        <Ionicons
+          name={overdue > 0 ? 'alert-outline' : 'notifications-outline'}
+          size={17}
+          color={overdue > 0 ? COLORS.orangeDark : COLORS.reminderIcon}
+        />
       </View>
 
-      <View style={styles.infoContent}>
-        <Text style={styles.infoTitle}>{card.title}</Text>
-        <Text style={styles.infoDescription}>{card.description}</Text>
+      <View style={styles.reminderContent}>
+        <Text style={styles.reminderTitle}>
+          {overdue > 0
+            ? `มี ${overdue} รายการที่เลยกำหนด`
+            : `วันนี้มี ${count} รายการที่ต้องทำ`}
+        </Text>
+        <Text style={styles.reminderSubtitle}>
+          อย่าลืมเช็ก Checklist ของคุณนะ
+        </Text>
       </View>
 
-      <View style={styles.infoArrow}>
+      <View style={styles.reminderArrow}>
         <Ionicons
           name="chevron-forward"
-          size={14}
-          color={COLORS.textLight}
+          size={16}
+          color={COLORS.textSecondary}
         />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+/* =========================================================
+   NEWS CARD
+========================================================= */
+
+function NewsCard({
+  news,
+  onPress,
+}: {
+  news: HomeNews;
+  onPress?: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={styles.newsCard}
+    >
+      {news.imageUrl ? (
+        <Image source={{ uri: news.imageUrl }} style={styles.newsImage} />
+      ) : (
+        <View style={styles.newsImagePlaceholder}>
+          <Ionicons
+            name="newspaper-outline"
+            size={30}
+            color={COLORS.orange}
+          />
+        </View>
+      )}
+
+      <View style={styles.newsContent}>
+        <View style={styles.newsMeta}>
+          <Text style={styles.newsCategory} numberOfLines={1}>
+            {news.category}
+          </Text>
+          <Text style={styles.newsDate}>{news.publishedAt}</Text>
+        </View>
+
+        <Text style={styles.newsTitle} numberOfLines={3}>
+          {news.title}
+        </Text>
+
+        <View style={styles.newsReadMore}>
+          <Text style={styles.newsReadText}>อ่านเพิ่มเติม</Text>
+          <Ionicons name="arrow-forward" size={12} color={COLORS.orange} />
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -487,60 +702,63 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     paddingHorizontal: 10,
-    paddingTop: 7,
+    paddingTop: 10,
     paddingBottom: 20,
   },
 
   /* SEARCH */
 
   searchContainer: {
-    height: 38,
+    height: 42,
     width: '100%',
-    borderRadius: 19,
+    borderRadius: 21,
     backgroundColor: COLORS.white,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    marginBottom: 12,
+    paddingHorizontal: 14,
+    marginBottom: 14,
     borderWidth: 0.5,
     borderColor: '#F0EBE8',
     shadowColor: '#AFA7A2',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 1,
   },
 
   searchInput: {
     flex: 1,
-    height: 38,
-    marginLeft: 7,
-    marginRight: 6,
+    height: 42,
+    marginLeft: 8,
     paddingVertical: 0,
-    fontSize: 9,
+    fontSize: 11,
     color: COLORS.text,
+  },
+
+  clearButton: {
+    width: 25,
+    height: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   /* HERO */
 
   heroWrapper: {
     width: '100%',
-    marginBottom: 16,
+    marginBottom: 14,
   },
 
   heroCard: {
     width: '100%',
-    minHeight: 181,
-    borderRadius: 28,
-    backgroundColor: COLORS.orange,
-    paddingHorizontal: 15,
-    paddingTop: 14,
-    paddingBottom: 12,
+    height: 265,
+    borderRadius: 27,
     overflow: 'hidden',
+    backgroundColor: COLORS.orange,
     position: 'relative',
     shadowColor: '#C85E25',
     shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.20,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 5,
   },
@@ -561,110 +779,99 @@ const styles = StyleSheet.create({
     opacity: 0.96,
   },
 
-  /* DECORATIVE CIRCLES */
-
-  decorCircleLarge: {
+  heroImage: {
     position: 'absolute',
-    width: 145,
-    height: 145,
-    borderRadius: 73,
-    right: -55,
-    top: -62,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
 
-  decorCircleSmall: {
+  heroImagePlaceholder: {
     position: 'absolute',
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    right: 20,
-    bottom: -40,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  decorCircleTiny: {
+  heroOverlay: {
     position: 'absolute',
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    left: -13,
-    bottom: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.38)',
   },
 
-  /* HERO TOP */
+  heroContent: {
+    flex: 1,
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 13,
+    justifyContent: 'space-between',
+  },
 
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 7,
   },
 
-  heroIcon: {
-    width: 39,
-    height: 39,
+  heroBadge: {
+    height: 28,
+    paddingHorizontal: 9,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 9,
+    gap: 5,
   },
 
-  heroLabelContainer: {
-    flex: 1,
-  },
-
-  heroLabel: {
-    fontSize: 8,
+  heroBadgeText: {
+    fontSize: 7.5,
     fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 0.8,
-  },
-
-  heroCategory: {
-    fontSize: 6.8,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.78)',
-    marginTop: 2,
+    color: COLORS.orange,
     letterSpacing: 0.5,
   },
 
-  heroSparkle: {
-    width: 31,
-    height: 31,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+  heroCategoryBadge: {
+    height: 28,
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  /* HERO TEXT */
+  heroCategoryText: {
+    fontSize: 6.5,
+    fontWeight: '700',
+    color: COLORS.white,
+    letterSpacing: 0.5,
+  },
 
   heroTitle: {
-    maxWidth: '92%',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 18,
+    lineHeight: 25,
     fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 7,
+    color: COLORS.white,
+    maxWidth: '95%',
+    marginTop: 10,
   },
 
   heroDescription: {
-    maxWidth: '90%',
-    fontSize: 7.8,
-    lineHeight: 11.5,
+    fontSize: 9.5,
+    lineHeight: 14,
     fontWeight: '400',
-    color: 'rgba(255,255,255,0.90)',
+    color: 'rgba(255,255,255,0.92)',
+    maxWidth: '93%',
+    marginTop: 5,
   },
-
-  /* HERO BOTTOM */
 
   heroBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
+    marginTop: 8,
   },
 
   factIndicators: {
@@ -677,32 +884,120 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.40)',
+    backgroundColor: 'rgba(255,255,255,0.45)',
   },
 
   factDotActive: {
     width: 17,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
   },
 
   heroReadMore: {
-    height: 27,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    height: 31,
+    paddingHorizontal: 11,
+    borderRadius: 16,
+    backgroundColor: COLORS.white,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 5,
   },
 
   heroReadText: {
-    fontSize: 7.8,
+    fontSize: 8,
     fontWeight: '800',
     color: COLORS.orange,
   },
 
-  /* SECTION HEADER */
+  /* TODAY REMINDER */
+
+  reminderCard: {
+    minHeight: 60,
+    width: '100%',
+    borderRadius: 19,
+    backgroundColor: COLORS.reminder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    marginBottom: 19,
+    borderWidth: 0.5,
+    borderColor: '#F4E7CF',
+  },
+
+  reminderEmpty: {
+    minHeight: 55,
+    width: '100%',
+    borderRadius: 19,
+    backgroundColor: '#F1F8F2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    marginBottom: 19,
+    borderWidth: 0.5,
+    borderColor: '#E0EEE1',
+  },
+
+  reminderIcon: {
+    width: 35,
+    height: 35,
+    borderRadius: 13,
+    backgroundColor: '#FFF0D1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  reminderIconEmpty: {
+    width: 35,
+    height: 35,
+    borderRadius: 13,
+    backgroundColor: '#E2F2E4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  reminderContent: {
+    flex: 1,
+    paddingRight: 7,
+  },
+
+  reminderTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+
+  reminderTitleEmpty: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+
+  reminderSubtitle: {
+    fontSize: 7.5,
+    color: COLORS.textLight,
+  },
+
+  reminderArrow: {
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* NEWS SECTION */
+
+  newsSection: {
+    width: '100%',
+    marginBottom: 10,
+  },
 
   sectionHeader: {
     flexDirection: 'row',
@@ -712,7 +1007,7 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '800',
     color: COLORS.text,
   },
@@ -723,70 +1018,112 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  /* INFORMATION CARDS */
-
-  cardsContainer: {
-    width: '100%',
-    gap: 9,
+  seeAllText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: COLORS.orange,
   },
 
-  infoCard: {
-    width: '100%',
-    minHeight: 78,
-    borderRadius: 24,
+  newsScrollContent: {
+    paddingRight: 10,
+    gap: 10,
+  },
+
+  /* NEWS CARD */
+
+  newsCard: {
+    width: 205,
+    minHeight: 220,
+    borderRadius: 22,
     backgroundColor: COLORS.white,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    overflow: 'hidden',
     shadowColor: '#AFA7A2',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 8,
     elevation: 2,
   },
 
-  infoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
+  newsImage: {
+    width: '100%',
+    height: 105,
+    resizeMode: 'cover',
   },
 
-  infoContent: {
+  newsImagePlaceholder: {
+    width: '100%',
+    height: 105,
+    backgroundColor: COLORS.newsBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  newsContent: {
     flex: 1,
-    paddingRight: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
   },
 
-  infoTitle: {
-    fontSize: 9.5,
-    lineHeight: 13,
-    fontWeight: '700',
+  newsMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+
+  newsCategory: {
+    flex: 1,
+    fontSize: 6.5,
+    fontWeight: '800',
+    color: COLORS.orange,
+    letterSpacing: 0.5,
+    marginRight: 5,
+  },
+
+  newsDate: {
+    fontSize: 6.5,
+    color: COLORS.textLight,
+  },
+
+  newsTitle: {
+    fontSize: 10.5,
+    lineHeight: 15,
+    fontWeight: '750',
     color: COLORS.text,
-    marginBottom: 4,
   },
 
-  infoDescription: {
+  newsReadMore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 'auto',
+    paddingTop: 8,
+  },
+
+  newsReadText: {
     fontSize: 7.5,
-    lineHeight: 10.5,
-    fontWeight: '400',
-    color: COLORS.textSecondary,
+    fontWeight: '800',
+    color: COLORS.orange,
   },
 
-  infoArrow: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
-    backgroundColor: '#F7F3F1',
+  /* LOADING */
+
+  loadingContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.background,
+  },
+
+  loadingText: {
+    fontSize: 9,
+    color: COLORS.textLight,
+    marginTop: 8,
   },
 
   /* BOTTOM */
 
   bottomSpace: {
-    height: 10,
+    height: 20,
   },
 });
