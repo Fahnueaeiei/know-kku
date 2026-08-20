@@ -3,7 +3,7 @@ import "dotenv/config";
 import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
 import type { Request, Response, NextFunction } from "express";
 import { db } from "./db/index.js";
-import { places, checklist, users, events, posts, eventParticipants } from "./db/schema.js";
+import { places, checklist, users, events, news, eventParticipants } from "./db/schema.js";
 import { eq, and } from "drizzle-orm";
 
 function requireAuthJson(req: Request, res: Response, next: NextFunction) {
@@ -130,16 +130,40 @@ app.post("/events", async (req, res) => {
   }
 });
 
-// ================= POSTS (public) =================
-app.get("/posts", async (req, res) => {
+// ================= NEWS (public) =================
+app.get("/news", async (req, res) => {
   try {
-    const result = await db.query.posts.findMany({
-      orderBy: (posts, { desc }) => [desc(posts.createdAt)],
+    const result = await db.query.news.findMany({
+      orderBy: (news, { desc }) => [desc(news.publishedDate)],
     });
     res.json(result);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch posts" });
+    res.status(500).json({ error: "Failed to fetch news" });
+  }
+});
+
+app.post("/news", async (req, res) => {
+  try {
+    const { title, category, description, icon, publishedDate, externalLink } = req.body;
+    if (!title) {
+      return res.status(400).json({ error: "title is required" });
+    }
+    const [newNews] = await db
+      .insert(news)
+      .values({
+        title,
+        category,
+        description,
+        icon,
+        publishedDate,
+        externalLink,
+      })
+      .returning();
+    res.status(201).json(newNews);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create news" });
   }
 });
 

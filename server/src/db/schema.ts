@@ -12,15 +12,14 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-
+ 
 // ---------- Enums ----------
-export const itemTypeEnum = pgEnum("item_type", ["place", "news", "event", "post"]);
-export const postCategoryEnum = pgEnum("post_category", ["news", "review", "question", "general"]);
-export const reportTargetEnum = pgEnum("report_target_type", ["post", "place"]);
+export const itemTypeEnum = pgEnum("item_type", ["place", "news", "event"]);
+export const reportTargetEnum = pgEnum("report_target_type", ["place"]);
 export const reportStatusEnum = pgEnum("report_status", ["pending", "reviewed", "resolved"]);
 export const checklistStatusEnum = pgEnum("checklist_status", ["pending", "in_progress", "done"]);
 export const busLineEnum = pgEnum("bus_line", ["green", "red", "blue", "yellow"]);
-
+ 
 // ---------- User ----------
 export const users = pgTable("users", {
   userId: serial("user_id").primaryKey(),
@@ -33,7 +32,7 @@ export const users = pgTable("users", {
   profileImage: varchar("profile_image", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
+ 
 // ---------- Place ----------
 export const places = pgTable("places", {
   placeId: serial("place_id").primaryKey(),
@@ -46,20 +45,20 @@ export const places = pgTable("places", {
   priceMin: integer("price_min"),
   priceMax: integer("price_max"),
 });
-
+ 
 // ---------- Room ----------
 export const rooms = pgTable("rooms", {
   roomId: serial("room_id").primaryKey(),
   roomNumber: varchar("room_number", { length: 50 }).notNull(),
   placeId: integer("place_id").references(() => places.placeId).notNull(),
 });
-
+ 
 // ---------- Bus Lines ----------
 export const busLines = pgTable("bus_lines", {
   busLineId: serial("bus_line_id").primaryKey(),
   name: busLineEnum("name").notNull().unique(),
 });
-
+ 
 export const placeBusLines = pgTable(
   "place_bus_lines",
   {
@@ -68,7 +67,7 @@ export const placeBusLines = pgTable(
   },
   (t) => ({ pk: primaryKey({ columns: [t.placeId, t.busLineId] }) })
 );
-
+ 
 // ---------- Place Reviews ----------
 export const placeReviews = pgTable("place_reviews", {
   reviewId: serial("review_id").primaryKey(),
@@ -78,17 +77,18 @@ export const placeReviews = pgTable("place_reviews", {
   comment: text("comment"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
+ 
 // ---------- News ----------
 export const news = pgTable("news", {
   newsId: serial("news_id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   category: varchar("category", { length: 100 }),
   description: text("description"),
+  icon: varchar("icon", { length: 100 }), // ชื่อไอคอนจาก Ionicons เช่น "bulb-outline"
   publishedDate: date("published_date"),
   externalLink: varchar("external_link", { length: 500 }),
 });
-
+ 
 // ---------- Checklist ----------
 export const checklist = pgTable("checklist", {
   taskId: serial("task_id").primaryKey(),
@@ -99,7 +99,7 @@ export const checklist = pgTable("checklist", {
   status: checklistStatusEnum("status").default("pending"),
   isDefault: boolean("is_default").default(false),
 });
-
+ 
 // ---------- Favorite ----------
 export const favorites = pgTable("favorites", {
   favoriteId: serial("favorite_id").primaryKey(),
@@ -108,7 +108,7 @@ export const favorites = pgTable("favorites", {
   itemId: integer("item_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
+ 
 // ---------- Event ----------
 export const events = pgTable("events", {
   eventId: serial("event_id").primaryKey(),
@@ -120,7 +120,7 @@ export const events = pgTable("events", {
   capacity: integer("capacity"),
   externalLink: varchar("external_link", { length: 500 }),
 });
-
+ 
 // ---------- EventParticipant ----------
 export const eventParticipants = pgTable(
   "event_participants",
@@ -131,40 +131,7 @@ export const eventParticipants = pgTable(
   },
   (t) => ({ pk: primaryKey({ columns: [t.eventId, t.userId] }) })
 );
-
-// ---------- Post ----------
-export const posts = pgTable("posts", {
-  postId: serial("post_id").primaryKey(),
-  userId: integer("user_id").references(() => users.userId).notNull(),
-  content: text("content").notNull(),
-  category: postCategoryEnum("category").default("general"),
-  isAnonymous: boolean("is_anonymous").default(false),
-  imageUrl: varchar("image_url", { length: 500 }),
-  likeCount: integer("like_count").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// ---------- Comment ----------
-export const comments = pgTable("comments", {
-  commentId: serial("comment_id").primaryKey(),
-  postId: integer("post_id").references(() => posts.postId).notNull(),
-  userId: integer("user_id").references(() => users.userId),
-  content: text("content").notNull(),
-  isAiGenerated: boolean("is_ai_generated").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// ---------- Like ----------
-export const likes = pgTable(
-  "likes",
-  {
-    userId: integer("user_id").references(() => users.userId).notNull(),
-    postId: integer("post_id").references(() => posts.postId).notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
-  },
-  (t) => ({ pk: primaryKey({ columns: [t.userId, t.postId] }) })
-);
-
+ 
 // ---------- Report ----------
 export const reports = pgTable("reports", {
   reportId: serial("report_id").primaryKey(),
@@ -175,7 +142,7 @@ export const reports = pgTable("reports", {
   status: reportStatusEnum("status").default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
+ 
 // ---------- ChatLog ----------
 export const chatLogs = pgTable("chat_logs", {
   chatId: serial("chat_id").primaryKey(),
@@ -184,33 +151,27 @@ export const chatLogs = pgTable("chat_logs", {
   answer: text("answer").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
+ 
 // ---------- Relations ----------
 export const usersRelations = relations(users, ({ many }) => ({
-  posts: many(posts),
-  comments: many(comments),
   checklist: many(checklist),
   favorites: many(favorites),
   placeReviews: many(placeReviews),
+  reports: many(reports),
+  chatLogs: many(chatLogs),
 }));
-
-export const postsRelations = relations(posts, ({ one, many }) => ({
-  user: one(users, { fields: [posts.userId], references: [users.userId] }),
-  comments: many(comments),
-  likes: many(likes),
-}));
-
+ 
 export const placesRelations = relations(places, ({ many }) => ({
   rooms: many(rooms),
   reviews: many(placeReviews),
   busLines: many(placeBusLines),
 }));
-
+ 
 export const placeReviewsRelations = relations(placeReviews, ({ one }) => ({
   place: one(places, { fields: [placeReviews.placeId], references: [places.placeId] }),
   user: one(users, { fields: [placeReviews.userId], references: [users.userId] }),
 }));
-
+ 
 export const placeBusLinesRelations = relations(placeBusLines, ({ one }) => ({
   place: one(places, { fields: [placeBusLines.placeId], references: [places.placeId] }),
   busLine: one(busLines, { fields: [placeBusLines.busLineId], references: [busLines.busLineId] }),
