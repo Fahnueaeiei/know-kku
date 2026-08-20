@@ -1,4 +1,5 @@
 // @ts-nocheck
+
 import React from 'react';
 import {
   View,
@@ -6,18 +7,18 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
 } from 'react-native';
-
-const { width } = Dimensions.get('window');
 
 export default function HeadBar({ avatar, onAvatarPress }) {
   return (
     <View style={styles.header}>
+      
+      {/* APP NAME */}
       <Text style={styles.title}>
         Know <Text style={styles.titleAccent}>KKU</Text>
       </Text>
 
+      {/* AVATAR */}
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={onAvatarPress}
@@ -25,66 +26,119 @@ export default function HeadBar({ avatar, onAvatarPress }) {
         style={styles.avatarButton}
       >
         {avatar ? (
-          <Image source={avatar} style={styles.avatar} />
+          <Image
+            source={avatar}
+            style={styles.avatar}
+          />
         ) : (
           <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>U</Text>
+            <Text style={styles.avatarText}>
+              U
+            </Text>
           </View>
         )}
       </TouchableOpacity>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  /* =====================================================
+     HEADER
+  ===================================================== */
+
   header: {
-    height: 43,
+    height: 58,
+
     width: '100%',
-    paddingHorizontal: 11,
+
+    paddingHorizontal: 16,
+
     flexDirection: 'row',
+
     alignItems: 'center',
+
     justifyContent: 'space-between',
+
     backgroundColor: '#FFFFFF',
+
+    borderBottomWidth: 0.5,
+
+    borderBottomColor: '#F0EBE8',
   },
 
+  /* =====================================================
+     APP TITLE
+  ===================================================== */
+
   title: {
-    fontSize: 12.5,
+    fontSize: 17,
+
     fontWeight: '700',
+
     color: '#252525',
-    letterSpacing: -0.2,
+
+    letterSpacing: -0.3,
   },
 
   titleAccent: {
     color: '#FA7C35',
   },
 
+  /* =====================================================
+     AVATAR BUTTON
+  ===================================================== */
+
   avatarButton: {
-    width: 27,
-    height: 27,
+    width: 38,
+
+    height: 38,
+
     alignItems: 'center',
+
     justifyContent: 'center',
   },
 
+  /* =====================================================
+     AVATAR
+  ===================================================== */
+
   avatar: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
+    width: 34,
+
+    height: 34,
+
+    borderRadius: 17,
+
     borderWidth: 1.2,
+
     borderColor: '#E8E8E8',
   },
 
+  /* =====================================================
+     AVATAR PLACEHOLDER
+  ===================================================== */
+
   avatarPlaceholder: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
+    width: 34,
+
+    height: 34,
+
+    borderRadius: 17,
+
     backgroundColor: '#F3E8E0',
+
     alignItems: 'center',
+
     justifyContent: 'center',
   },
 
   avatarText: {
-    fontSize: 10,
+    fontSize: 13,
+
     fontWeight: '700',
+
     color: '#FA7C35',
   },
 });

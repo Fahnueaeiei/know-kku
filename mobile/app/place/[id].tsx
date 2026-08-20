@@ -393,10 +393,10 @@ export default function PlaceDetailScreen() {
                   styles.routeItem,
 
                   index !==
-                    place.shuttleRoutes
-                      .length -
-                      1 &&
-                    styles.routeDivider,
+                  place.shuttleRoutes
+                    .length -
+                  1 &&
+                  styles.routeDivider,
                 ]}
               >
 
@@ -824,6 +824,21 @@ const styles = StyleSheet.create({
      SECTION HEADER
   ======================================================= */
 
+  favoriteIconButton: {
+    width: 30,
+    height: 30,
+
+    borderRadius: 15,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    backgroundColor: "#FFF1F2",
+  },
+
+  favoriteIconButtonActive: {
+    backgroundColor: "#FFE3E5",
+  },
   sectionHeader: {
     flexDirection: "row",
 
@@ -833,6 +848,28 @@ const styles = StyleSheet.create({
 
     marginBottom: 9,
   },
+
+  favoriteChip: {
+      borderWidth: 1,
+
+      borderColor: "#F2C7C9",
+
+      backgroundColor:
+        "#FFF5F5",
+    },
+
+    favoriteChipActive: {
+      backgroundColor:
+        COLORS.favorite,
+
+      borderColor:
+        COLORS.favorite,
+    },
+
+    favoriteText: {
+      color:
+        COLORS.favorite,
+    },
 
   sectionTitle: {
     fontSize: 13.5,

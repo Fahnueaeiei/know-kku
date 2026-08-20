@@ -39,3 +39,17 @@ export const getPlace = (placeId: string | string[]) =>
   request<ApiPlace>(`/places/${encodeURIComponent(String(placeId))}`);
 
 export const getEvents = () => request<ApiEvent[]>("/events");
+
+export const getEventById = async (
+  id: string | number
+) => {
+  const response = await fetch(
+    `${API_URL}/events/${id}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch event");
+  }
+
+  return response.json();
+};

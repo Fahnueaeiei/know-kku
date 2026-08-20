@@ -193,9 +193,9 @@ export default function PlaceScreen() {
         previousPlaces.map((item) =>
           item.placeId === place.placeId
             ? {
-                ...item,
-                favorite: newFavoriteState,
-              }
+              ...item,
+              favorite: newFavoriteState,
+            }
             : item
         )
       );
@@ -235,51 +235,25 @@ export default function PlaceScreen() {
   }: {
     item: string;
   }) => {
-    const isFavorites =
-      item === "Favorites";
-
-    const isActive =
-      item === activeCategory;
+    const isActive = item === activeCategory;
 
     return (
       <TouchableOpacity
         activeOpacity={0.8}
         style={[
           styles.categoryChip,
-          isActive && styles.categoryChipActive,
-          isFavorites && styles.favoriteChip,
-          isFavorites &&
-            isActive &&
-            styles.favoriteChipActive,
+          isActive &&
+          styles.categoryChipActive,
         ]}
         onPress={() =>
           setActiveCategory(item)
         }
       >
-        {isFavorites ? (
-          <Ionicons
-            name={
-              isActive
-                ? "heart"
-                : "heart-outline"
-            }
-            size={14}
-            color={
-              isActive
-                ? "#FFFFFF"
-                : COLORS.favorite
-            }
-          />
-        ) : null}
-
         <Text
           style={[
             styles.categoryText,
             isActive &&
-              styles.categoryTextActive,
-            isFavorites &&
-              !isActive &&
-              styles.favoriteText,
+            styles.categoryTextActive,
           ]}
         >
           {item}
@@ -323,22 +297,37 @@ export default function PlaceScreen() {
             Categories
           </Text>
 
-          {activeCategory === "Favorites" &&
-            favoriteCount > 0 && (
-              <Text style={styles.favoriteCount}>
-                {favoriteCount} saved
-              </Text>
-            )}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={[
+              styles.favoriteIconButton,
+              activeCategory === "Favorites" &&
+              styles.favoriteIconButtonActive,
+            ]}
+            onPress={() =>
+              setActiveCategory(
+                activeCategory === "Favorites"
+                  ? "All"
+                  : "Favorites"
+              )
+            }
+          >
+            <Ionicons
+              name={
+                activeCategory === "Favorites"
+                  ? "heart"
+                  : "heart-outline"
+              }
+              size={18}
+              color={COLORS.favorite}
+            />
+          </TouchableOpacity>
         </View>
-
         {/* ================= CATEGORY ================= */}
 
         <FlatList
           horizontal
-          data={[
-            ...categories,
-            "Favorites",
-          ]}
+          data={categories}
           keyExtractor={(item) => item}
           renderItem={renderCategory}
           showsHorizontalScrollIndicator={false}
@@ -354,8 +343,8 @@ export default function PlaceScreen() {
             {activeCategory === "All"
               ? "Places"
               : activeCategory === "Favorites"
-              ? "Favorite Places"
-              : activeCategory}
+                ? "Favorite Places"
+                : activeCategory}
           </Text>
 
           <Text style={styles.resultCount}>
@@ -432,7 +421,7 @@ export default function PlaceScreen() {
               <Ionicons
                 name={
                   activeCategory ===
-                  "Favorites"
+                    "Favorites"
                     ? "heart-outline"
                     : "search-outline"
                 }
@@ -442,7 +431,7 @@ export default function PlaceScreen() {
 
               <Text style={styles.emptyText}>
                 {activeCategory ===
-                "Favorites"
+                  "Favorites"
                   ? "No favorite places yet."
                   : "No places found."}
               </Text>
@@ -588,6 +577,21 @@ const styles = StyleSheet.create({
 
   favoriteText: {
     color: COLORS.favorite,
+  },
+  favoriteIconButton: {
+    width: 30,
+    height: 30,
+
+    borderRadius: 15,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    backgroundColor: "#FFF1F2",
+  },
+
+  favoriteIconButtonActive: {
+    backgroundColor: "#FFE3E5",
   },
 
   /* ================= RESULT ================= */
