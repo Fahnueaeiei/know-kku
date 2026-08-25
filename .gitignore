@@ -41,3 +41,8 @@ npm-debug.log*
 .claude/settings.local.json
 # coverage
 coverage/
+.venv/
+__pycache__/
+# ChromaDB
+chroma_db/
+Thumbs.db

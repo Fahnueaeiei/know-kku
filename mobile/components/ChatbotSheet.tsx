@@ -18,9 +18,11 @@ import {
   TouchableOpacity,
   View,
   Image,
+  Linking,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
+import { sendChatMessage } from '../api/chatApi';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -40,6 +42,7 @@ export default function ChatbotSheet({
   onClose,
 }: ChatbotSheetProps) {
   const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -136,7 +139,7 @@ export default function ChatbotSheet({
         return (
           gesture.dy > 5 &&
           Math.abs(gesture.dy) >
-            Math.abs(gesture.dx)
+          Math.abs(gesture.dx)
         );
       },
 
@@ -164,14 +167,76 @@ export default function ChatbotSheet({
   /* =====================================================
      SEND MESSAGE
   ===================================================== */
+  const renderMessageText = (
+    text: string,
+    isUser: boolean
+  ) => {
+    const urlRegex = /(https?:\/\/[^\s<]+)/g;
+    const parts = text.split(urlRegex);
 
-  const sendMessage = () => {
+    return (
+      <Text
+        style={[
+          styles.messageText,
+          isUser && styles.userMessageText,
+        ]}
+      >
+        {parts.map((part, index) => {
+          const isUrl = /^https?:\/\/[^\s<]+$/.test(part);
+
+          if (isUrl) {
+            // ตัดเครื่องหมาย punctuation ที่อาจติดท้าย URL
+            const match = part.match(/^(.*?)([.,!?;:)\]}]*)$/);
+
+            const url = match?.[1] ?? part;
+            const trailing = match?.[2] ?? '';
+
+            return (
+              <React.Fragment key={index}>
+                <Text
+                  style={styles.linkText}
+                  onPress={async () => {
+                    try {
+                      const supported = await Linking.canOpenURL(url);
+
+                      if (supported) {
+                        await Linking.openURL(url);
+                      } else {
+                        console.log(
+                          'Cannot open URL:',
+                          url
+                        );
+                      }
+                    } catch (error) {
+                      console.error(
+                        'Open URL error:',
+                        error
+                      );
+                    }
+                  }}
+                >
+                  {url}
+                </Text>
+
+                {trailing}
+              </React.Fragment>
+            );
+          }
+
+          return <React.Fragment key={index}>{part}</React.Fragment>;
+        })}
+      </Text>
+    );
+  };
+
+  const sendMessage = async () => {
     const text = message.trim();
 
-    if (!text) {
+    if (!text || isLoading) {
       return;
     }
 
+    // แสดงข้อความของผู้ใช้ก่อน
     const userMessage: Message = {
       id: Date.now().toString(),
       sender: 'user',
@@ -184,20 +249,97 @@ export default function ChatbotSheet({
     ]);
 
     setMessage('');
+    setIsLoading(true);
 
-    /*
-      TODO:
-      เชื่อม API AI Chatbot ตรงนี้
-    */
+    try {
+      // เรียก Node.js Server
+      const result = await sendChatMessage(text);
+
+      // แสดงคำตอบจาก พี่ดินแดง
+      const botMessage: Message = {
+        id: `${Date.now()}-bot`,
+        sender: 'bot',
+        text: result.answer,
+      };
+
+      setMessages((prev) => [
+        ...prev,
+        botMessage,
+      ]);
+
+    } catch (error) {
+      console.error('Chatbot error:', error);
+
+      const errorMessage: Message = {
+        id: `${Date.now()}-error`,
+        sender: 'bot',
+        text:
+          'ขออภัยครับ พี่ดินแดงไม่สามารถเชื่อมต่อระบบได้ในขณะนี้ 😥\nลองใหม่อีกครั้งนะครับ',
+      };
+
+      setMessages((prev) => [
+        ...prev,
+        errorMessage,
+      ]);
+
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /* =====================================================
      SUGGESTION
   ===================================================== */
 
-  const selectSuggestion = (text: string) => {
-    setMessage(text);
+  const selectSuggestion = async (text: string) => {
+  if (isLoading) return;
+
+  setMessage('');
+
+  const userMessage: Message = {
+    id: Date.now().toString(),
+    sender: 'user',
+    text,
   };
+
+  setMessages((prev) => [
+    ...prev,
+    userMessage,
+  ]);
+
+  setIsLoading(true);
+
+  try {
+    const result = await sendChatMessage(text);
+
+    const botMessage: Message = {
+      id: `${Date.now()}-bot`,
+      sender: 'bot',
+      text: result.answer,
+    };
+
+    setMessages((prev) => [
+      ...prev,
+      botMessage,
+    ]);
+  } catch (error) {
+    console.error('Chatbot error:', error);
+
+    const errorMessage: Message = {
+      id: `${Date.now()}-error`,
+      sender: 'bot',
+      text:
+        'ขออภัยครับ พี่ดินแดงไม่สามารถเชื่อมต่อระบบได้ในขณะนี้ 😥\nลองใหม่อีกครั้งนะครับ',
+    };
+
+    setMessages((prev) => [
+      ...prev,
+      errorMessage,
+    ]);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   /* =====================================================
      RENDER
@@ -318,20 +460,16 @@ export default function ChatbotSheet({
 
         <KeyboardAvoidingView
           style={styles.keyboardView}
-          behavior={
-            Platform.OS === 'ios'
-              ? 'padding'
-              : undefined
-          }
+          behavior="padding"
+          keyboardVerticalOffset={0}
         >
 
           <ScrollView
             style={styles.chatContainer}
-            contentContainerStyle={
-              styles.chatContent
-            }
+            contentContainerStyle={styles.chatContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           >
 
             {/* =================================================
@@ -347,7 +485,7 @@ export default function ChatbotSheet({
               <Text style={styles.welcomeSubtitle}>
                 พี่ดินแดงพร้อมช่วยเหลือคุณ
               </Text>
-              </View>
+            </View>
 
 
             {/* =================================================
@@ -388,27 +526,37 @@ export default function ChatbotSheet({
                   ]}
                 >
 
-                  <Text
-                    style={[
-                      styles.messageText,
-                      item.sender === 'user' &&
-                        styles.userMessageText,
-                    ]}
-                  >
-                    {item.text}
-                  </Text>
+
+                  {renderMessageText(item.text, item.sender === 'user')}
+
 
                 </View>
 
               </View>
 
             ))}
+            {isLoading && (
+              <View style={[styles.messageRow, styles.botRow]}>
+                <View style={styles.smallAvatar}>
+                  <Image
+                    source={require('../assets/images/dindangg.png')}
+                    style={styles.smallAvatarImage}
+                  />
+                </View>
+
+                <View style={[styles.messageBubble, styles.botBubble]}>
+                  <Text style={styles.messageText}>
+                    พี่ดินแดงกำลังค้นข้อมูลให้ครับ... 🤔
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* =================================================
                 SUGGESTIONS
             ================================================= */}
 
-            {messages.length === 1 && (
+            {!isLoading  && (
 
               <View style={styles.suggestions}>
 
@@ -428,7 +576,7 @@ export default function ChatbotSheet({
                   style={styles.suggestionButton}
                   onPress={() =>
                     selectSuggestion(
-                      'ส่งเอกสาร กยศ.ที่ไหน?'
+                      'กยศ. ส่งที่ไหน?'
                     )
                   }
                   activeOpacity={0.75}
@@ -447,7 +595,7 @@ export default function ChatbotSheet({
                   <Text
                     style={styles.suggestionText}
                   >
-                    ส่งเอกสาร กยศ.ที่ไหน?
+                    กยศ. ส่งที่ไหน?
                   </Text>
 
                   <Ionicons
@@ -462,7 +610,7 @@ export default function ChatbotSheet({
                   style={styles.suggestionButton}
                   onPress={() =>
                     selectSuggestion(
-                      'ตึก SC09 อยู่ตรงไหน?'
+                      'กยศ. ต้องใช้เอกสารอะไรบ้าง?'
                     )
                   }
                   activeOpacity={0.75}
@@ -481,7 +629,7 @@ export default function ChatbotSheet({
                   <Text
                     style={styles.suggestionText}
                   >
-                    ตึก SC09 อยู่ตรงไหน?
+                    กยศ. ต้องใช้เอกสารอะไรบ้าง?
                   </Text>
 
                   <Ionicons
@@ -496,7 +644,7 @@ export default function ChatbotSheet({
                   style={styles.suggestionButton}
                   onPress={() =>
                     selectSuggestion(
-                      'มีทุนการศึกษาอะไรบ้าง?'
+                      'กยศ. ต้องใช้จิตอาสากี่ชั่วโมง?'
                     )
                   }
                   activeOpacity={0.75}
@@ -515,7 +663,7 @@ export default function ChatbotSheet({
                   <Text
                     style={styles.suggestionText}
                   >
-                    มีทุนการศึกษาอะไรบ้าง?
+                    กยศ. ต้องใช้จิตอาสากี่ชั่วโมง?
                   </Text>
 
                   <Ionicons
@@ -547,17 +695,17 @@ export default function ChatbotSheet({
                 placeholder="ถามพี่ดินแดง..."
                 placeholderTextColor="#A5A5A5"
                 multiline
-                returnKeyType="send"
+                scrollEnabled
               />
 
               <TouchableOpacity
                 style={[
                   styles.sendButton,
-                  !message.trim() &&
-                    styles.sendButtonDisabled,
+                  (!message.trim() || isLoading) &&
+                  styles.sendButtonDisabled,
                 ]}
                 onPress={sendMessage}
-                disabled={!message.trim()}
+                disabled={!message.trim() || isLoading}
                 activeOpacity={0.8}
               >
 
@@ -999,14 +1147,8 @@ const styles = StyleSheet.create({
   inputArea: {
     paddingHorizontal: 13,
     paddingTop: 10,
-
-    paddingBottom:
-      Platform.OS === 'ios'
-        ? 10
-        : 13,
-
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
-
     borderTopWidth: 1,
     borderTopColor: '#EEEEEE',
   },
@@ -1029,14 +1171,13 @@ const styles = StyleSheet.create({
 
   input: {
     flex: 1,
-
     fontSize: 14,
     color: '#222222',
-
     maxHeight: 80,
-
+    minHeight: 39,
     paddingTop: 8,
     paddingBottom: 8,
+    textAlignVertical: 'top',
   },
 
   sendButton: {
@@ -1061,5 +1202,9 @@ const styles = StyleSheet.create({
     color: '#AAAAAA',
 
     marginTop: 5,
+  },
+  linkText: {
+    color: '#1976D2',
+    textDecorationLine: 'underline',
   },
 });

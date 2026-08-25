@@ -111,11 +111,24 @@ export default function PlaceDetailScreen() {
           name: data.name,
           category: data.category,
           description: data.description ?? "No description available.",
-          image: { uri: "https://placehold.co/1200x800/EFF3F6/344054?text=KKU+Place" },
+          image: data.imageUrl
+            ? { uri: data.imageUrl }
+            : { uri: "https://placehold.co/1200x800/EFF3F6/344054?text=KKU+Place" },
           openingHours: { open: "Not specified", close: "" },
           latitude: data.latitude === null ? Number.NaN : Number(data.latitude),
           longitude: data.longitude === null ? Number.NaN : Number(data.longitude),
-          shuttleRoutes: [],
+          shuttleRoutes: (data.busLines ?? []).map((item) => ({
+            id: String(item.busLine.busLineId),
+            name: `${item.busLine.name} Line`,
+            color:
+              item.busLine.name === "green"
+                ? "#55A76A"
+                : item.busLine.name === "red"
+                  ? "#E63946"
+                  : item.busLine.name === "blue"
+                    ? "#4BA6D8"
+                    : "#F2C94C",
+          })),
           nearbyPlaces: [],
         });
       } catch (error) {
@@ -359,69 +372,30 @@ export default function PlaceDetailScreen() {
             SHUTTLE BUS
         ================================================= */}
 
-        <View style={styles.sectionHeader}>
-
-          <View>
-            <Text style={styles.sectionTitle}>
-              Shuttle Bus Info
-            </Text>
-
-            <Text
-              style={styles.sectionSubtitle}
-            >
-              Shuttle routes passing nearby
-            </Text>
-          </View>
-
-          <View style={styles.busIcon}>
-            <Ionicons
-              name="bus-outline"
-              size={18}
-              color={COLORS.orange}
-            />
-          </View>
-
-        </View>
-
         <View style={styles.shuttleCard}>
-
-          {place.shuttleRoutes.map(
-            (route, index) => (
+          {place.shuttleRoutes.length > 0 ? (
+            place.shuttleRoutes.map((route, index) => (
               <View
                 key={route.id}
                 style={[
                   styles.routeItem,
-
-                  index !==
-                  place.shuttleRoutes
-                    .length -
-                  1 &&
+                  index !== place.shuttleRoutes.length - 1 &&
                   styles.routeDivider,
                 ]}
               >
-
                 <View
                   style={[
                     styles.routeDot,
-                    {
-                      backgroundColor:
-                        route.color,
-                    },
+                    { backgroundColor: route.color },
                   ]}
                 />
 
-                <View
-                  style={styles.routeInfo}
-                >
-                  <Text
-                    style={styles.routeName}
-                  >
+                <View style={styles.routeInfo}>
+                  <Text style={styles.routeName}>
                     {route.name}
                   </Text>
 
-                  <Text
-                    style={styles.routeSubtitle}
-                  >
+                  <Text style={styles.routeSubtitle}>
                     Stops near {place.name}
                   </Text>
                 </View>
@@ -431,12 +405,24 @@ export default function PlaceDetailScreen() {
                   size={16}
                   color={COLORS.textLight}
                 />
-
               </View>
-            )
-          )}
+            ))
+          ) : (
+            <View style={styles.noBusContainer}>
+              <Ionicons
+                name="bus-outline"
+                size={22}
+                color={COLORS.textLight}
+              />
 
+              <Text style={styles.noBusText}>
+                No shuttle bus passes this place
+              </Text>
+            </View>
+          )}
         </View>
+
+
 
         {/* =================================================
             PLACES NEARBY
@@ -850,26 +836,26 @@ const styles = StyleSheet.create({
   },
 
   favoriteChip: {
-      borderWidth: 1,
+    borderWidth: 1,
 
-      borderColor: "#F2C7C9",
+    borderColor: "#F2C7C9",
 
-      backgroundColor:
-        "#FFF5F5",
-    },
+    backgroundColor:
+      "#FFF5F5",
+  },
 
-    favoriteChipActive: {
-      backgroundColor:
-        COLORS.favorite,
+  favoriteChipActive: {
+    backgroundColor:
+      COLORS.favorite,
 
-      borderColor:
-        COLORS.favorite,
-    },
+    borderColor:
+      COLORS.favorite,
+  },
 
-    favoriteText: {
-      color:
-        COLORS.favorite,
-    },
+  favoriteText: {
+    color:
+      COLORS.favorite,
+  },
 
   sectionTitle: {
     fontSize: 13.5,
@@ -971,6 +957,18 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
 
     marginTop: 2,
+  },
+
+  noBusContainer: {
+    minHeight: 70,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  noBusText: {
+    fontSize: 8.5,
+    color: COLORS.textLight,
+    marginTop: 5,
   },
 
   /* =======================================================

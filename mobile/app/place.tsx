@@ -80,21 +80,31 @@ export default function PlaceScreen() {
   ======================================================= */
 
   useEffect(() => {
-    const loadPlaces = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        setPlaces(await getPlaces());
-      } catch (error) {
-        console.error("Failed to load places:", error);
-        setError("Unable to load places.");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadPlaces = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-    loadPlaces();
-  }, []);
+      const data = await getPlaces();
+
+      setPlaces(
+        data.map((place) => ({
+          ...place,
+          image: place.imageUrl
+            ? { uri: place.imageUrl }
+            : undefined,
+        }))
+      );
+    } catch (error) {
+      console.error("Failed to load places:", error);
+      setError("Unable to load places.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadPlaces();
+}, []);
 
   /* =======================================================
      CATEGORIES
