@@ -1,0 +1,9 @@
+chromadb
+python-dotenv
+google-genai
+fastapi
+uvicorn
+requests
+beautifulsoup4
+
+//ติดตั้งทั้งหมดด้วยคำสั่ง pip install -r requirements.txt
