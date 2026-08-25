@@ -63,8 +63,8 @@ const COLORS = {
 ========================================================= */
 
 /**
- * Content ที่ใช้ใน "Did You Know?"
- * มาจาก backend endpoint GET /news
+ * Content ที่ใช้ใน "Did You Know?" (banner หมุน)
+ * มาจาก backend endpoint GET /news?featured=true
  */
 type HomeFact = {
   id: string;
@@ -86,8 +86,8 @@ type ChecklistSummary = {
 };
 
 /**
- * ข่าวล่าสุด
- * TODO: ยังไม่มี backend endpoint — ปัจจุบันเป็น mock
+ * ข่าวล่าสุด (การ์ดแนวนอนด้านล่าง)
+ * มาจาก backend endpoint GET /news (ไม่รวมข่าวที่ featured ค้างอยู่)
  */
 type HomeNews = {
   id: string;
@@ -107,10 +107,9 @@ type HomeData = {
 /* =========================================================
    INITIAL / FALLBACK DATA
    ---------------------------------------------------------
-   facts: เริ่มเป็น [] แล้วโหลดจริงจาก GET /news
-   checklist / latestNews: ยังไม่มี backend endpoint
-   จึงคงเป็น mock ไปก่อน — TODO: เปลี่ยนเป็น fetch เมื่อ
-   backend พร้อม (เช่น GET /checklist/summary, GET /news/latest)
+   facts / latestNews: เริ่มเป็น [] แล้วโหลดจริงจาก backend
+   checklist: ยังไม่มี backend endpoint จึงคงเป็น mock ไปก่อน
+   TODO: เปลี่ยนเป็น fetch เมื่อ backend พร้อม (เช่น GET /checklist/summary)
 ========================================================= */
 
 const initialHomeData: HomeData = {
@@ -121,35 +120,7 @@ const initialHomeData: HomeData = {
     overdueCount: 0,
   },
 
-  latestNews: [
-    {
-      id: 'news-001',
-      title: 'เปิดลงทะเบียนกิจกรรมสำหรับนักศึกษาใหม่',
-      category: 'ANNOUNCEMENT',
-      publishedAt: '20 Aug 2026',
-      imageUrl:
-        'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=900&q=80',
-      sourceUrl: 'https://www.kku.ac.th/',
-    },
-    {
-      id: 'news-002',
-      title: 'กำหนดการสำคัญสำหรับนักศึกษา ประจำภาคการศึกษา',
-      category: 'ACADEMIC',
-      publishedAt: '19 Aug 2026',
-      imageUrl:
-        'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80',
-      sourceUrl: 'https://www.kku.ac.th/',
-    },
-    {
-      id: 'news-003',
-      title: 'กิจกรรมและข่าวสารใหม่จากมหาวิทยาลัยขอนแก่น',
-      category: 'CAMPUS',
-      publishedAt: '18 Aug 2026',
-      imageUrl:
-        'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=900&q=80',
-      sourceUrl: 'https://www.kku.ac.th/',
-    },
-  ],
+  latestNews: [],
 };
 
 /* =========================================================
@@ -172,27 +143,40 @@ export default function HomeScreen() {
   const [chatbotVisible, setChatbotVisible] = useState(false);
 
   /* =======================================================
-     FETCH FACTS (Did You Know) FROM BACKEND
+     FETCH HOME DATA FROM BACKEND
      -------------------------------------------------------
-     checklist / latestNews ยังใช้ mock อยู่ — merge เฉพาะ
-     facts เข้ากับ data เดิม เพื่อไม่ทับ mock ส่วนอื่น
+     ยิง 2 endpoint พร้อมกัน:
+     - GET /news?featured=true -> banner "Did You Know?"
+     - GET /news               -> การ์ดข่าวล่าสุดด้านล่าง
+     (ตัวที่ featured และยังไม่หมดเวลาจะไม่โผล่ใน list ปกติ
+      เพราะ backend filter ให้แล้ว)
+     checklist ยังใช้ mock อยู่ — merge เฉพาะ facts/latestNews
+     เข้ากับ data เดิม เพื่อไม่ทับ checklist mock
   ======================================================= */
 
   useEffect(() => {
-    const fetchFacts = async () => {
+    const fetchHomeData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(`${API_URL}/news`);
+        const [featuredRes, newsRes] = await Promise.all([
+          fetch(`${API_URL}/news?featured=true`),
+          fetch(`${API_URL}/news`),
+        ]);
 
-        if (!res.ok) {
-          throw new Error(`Request failed: ${res.status}`);
+        if (!featuredRes.ok) {
+          throw new Error(`Featured news request failed: ${featuredRes.status}`);
         }
 
-        const raw = await res.json();
+        if (!newsRes.ok) {
+          throw new Error(`News request failed: ${newsRes.status}`);
+        }
 
-        const facts: HomeFact[] = raw.map((item: any) => ({
+        const featuredRaw = await featuredRes.json();
+        const newsRaw = await newsRes.json();
+
+        const facts: HomeFact[] = featuredRaw.map((item: any) => ({
           id: String(item.newsId),
           category: item.category ?? 'NEWS',
           title: item.title,
@@ -200,20 +184,29 @@ export default function HomeScreen() {
           icon:
             (item.icon as keyof typeof Ionicons.glyphMap) ||
             'bulb-outline',
-          sourceUrl: item.sourceUrl,
+          sourceUrl: item.externalLink,
           imageUrl: item.imageUrl,
         }));
 
-        setData((prev) => ({ ...prev, facts }));
+        const latestNews: HomeNews[] = newsRaw.map((item: any) => ({
+          id: String(item.newsId),
+          title: item.title,
+          category: item.category ?? 'NEWS',
+          publishedAt: item.publishedDate,
+          imageUrl: item.imageUrl,
+          sourceUrl: item.externalLink,
+        }));
+
+        setData((prev) => ({ ...prev, facts, latestNews }));
       } catch (err) {
-        console.error('fetchFacts error:', err);
+        console.error('fetchHomeData error:', err);
         setError('โหลดข่าวสารไม่สำเร็จ');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchFacts();
+    fetchHomeData();
   }, []);
 
   /* =======================================================
@@ -548,19 +541,30 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.newsScrollContent}
-            >
-              {data.latestNews.map((news) => (
-                <NewsCard
-                  key={news.id}
-                  news={news}
-                  onPress={() => handleNewsPress(news)}
+            {data.latestNews.length === 0 ? (
+              <View style={styles.newsEmpty}>
+                <Ionicons
+                  name="newspaper-outline"
+                  size={22}
+                  color={COLORS.textLight}
                 />
-              ))}
-            </ScrollView>
+                <Text style={styles.newsEmptyText}>ยังไม่มีข่าวในตอนนี้</Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.newsScrollContent}
+              >
+                {data.latestNews.map((news) => (
+                  <NewsCard
+                    key={news.id}
+                    news={news}
+                    onPress={() => handleNewsPress(news)}
+                  />
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {/* Extra space so floating button does not cover content */}
@@ -1056,6 +1060,23 @@ const styles = StyleSheet.create({
   newsScrollContent: {
     paddingRight: 10,
     gap: 10,
+  },
+
+  newsEmpty: {
+    width: '100%',
+    minHeight: 90,
+    borderRadius: 19,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderColor: COLORS.border,
+    gap: 6,
+  },
+
+  newsEmptyText: {
+    fontSize: 9,
+    color: COLORS.textLight,
   },
 
   /* NEWS CARD */

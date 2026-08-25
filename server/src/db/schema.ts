@@ -85,20 +85,23 @@ export const news = pgTable("news", {
   title: varchar("title", { length: 255 }).notNull(),
   category: varchar("category", { length: 100 }),
   description: text("description"),
-  icon: varchar("icon", { length: 100 }), // ชื่อไอคอนจาก Ionicons เช่น "bulb-outline"
+  icon: varchar("icon", { length: 100 }),
   publishedDate: date("published_date"),
   externalLink: varchar("external_link", { length: 500 }),
+  imageUrl: varchar("image_url", { length: 500 }), // เผื่อยังไม่มี เพิ่มไว้เลย
+  isFeatured: boolean("is_featured").default(false),   // true = อยู่ banner
+  featuredUntil: timestamp("featured_until"),           // หมดเวลานี้ = หลุด banner อัตโนมัติ
 });
- 
-// ---------- Checklist ----------
-export const checklist = pgTable("checklist", {
-  taskId: serial("task_id").primaryKey(),
-  userId: integer("user_id").references(() => users.userId).notNull(),
+
+export const documents = pgTable("documents", {
+  documentId: serial("document_id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }),
   description: text("description"),
-  dueDate: date("due_date"),
-  status: checklistStatusEnum("status").default("pending"),
-  isDefault: boolean("is_default").default(false),
+  fileUrl: varchar("file_url", { length: 500 }),
+  externalLink: varchar("external_link", { length: 500 }),
+  publishedDate: date("published_date"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
  
 // ---------- Favorite ----------
@@ -110,7 +113,6 @@ export const favorites = pgTable("favorites", {
   createdAt: timestamp("created_at").defaultNow(),
 });
  
-// ---------- Event ----------
 export const events = pgTable("events", {
   eventId: serial("event_id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -121,17 +123,17 @@ export const events = pgTable("events", {
   capacity: integer("capacity"),
   externalLink: varchar("external_link", { length: 500 }),
 });
- 
-// ---------- EventParticipant ----------
-export const eventParticipants = pgTable(
-  "event_participants",
-  {
-    eventId: integer("event_id").references(() => events.eventId).notNull(),
-    userId: integer("user_id").references(() => users.userId).notNull(),
-    joinedAt: timestamp("joined_at").defaultNow(),
-  },
-  (t) => ({ pk: primaryKey({ columns: [t.eventId, t.userId] }) })
-);
+
+export const checklist = pgTable("checklist", {
+  taskId: serial("task_id").primaryKey(),
+  userId: integer("user_id").references(() => users.userId).notNull(),
+  eventId: integer("event_id").references(() => events.eventId),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  dueDate: date("due_date"),
+  status: checklistStatusEnum("status").default("pending"),
+  isDefault: boolean("is_default").default(false),
+});
  
 // ---------- Report ----------
 export const reports = pgTable("reports", {

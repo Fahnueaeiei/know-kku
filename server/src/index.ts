@@ -3,8 +3,8 @@ import "dotenv/config";
 import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
 import type { Request, Response, NextFunction } from "express";
 import { db } from "./db/index.js";
-import { places, checklist, users, events, news, eventParticipants } from "./db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { places, checklist, users, events, news } from "./db/schema.js";
+import { eq, and, gt, lte, or, desc } from "drizzle-orm";
 
 function requireAuthJson(req: Request, res: Response, next: NextFunction) {
   const { userId } = getAuth(req);
@@ -152,9 +152,25 @@ app.post("/events", async (req, res) => {
 // ================= NEWS (public) =================
 app.get("/news", async (req, res) => {
   try {
-    const result = await db.query.news.findMany({
-      orderBy: (news, { desc }) => [desc(news.publishedDate)],
-    });
+    const isFeaturedQuery = req.query.featured === "true";
+    const now = new Date();
+
+    let result;
+
+    if (isFeaturedQuery) {
+      result = await db
+        .select()
+        .from(news)
+        .where(and(eq(news.isFeatured, true), gt(news.featuredUntil, now)))
+        .orderBy(desc(news.publishedDate));
+    } else {
+      result = await db
+        .select()
+        .from(news)
+        .where(or(eq(news.isFeatured, false), lte(news.featuredUntil, now)))
+        .orderBy(desc(news.publishedDate));
+    }
+
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -164,10 +180,22 @@ app.get("/news", async (req, res) => {
 
 app.post("/news", async (req, res) => {
   try {
-    const { title, category, description, icon, publishedDate, externalLink } = req.body;
+    const {
+      title,
+      category,
+      description,
+      icon,
+      publishedDate,
+      externalLink,
+      imageUrl,
+      isFeatured,
+      featuredUntil,
+    } = req.body;
+
     if (!title) {
       return res.status(400).json({ error: "title is required" });
     }
+
     const [newNews] = await db
       .insert(news)
       .values({
@@ -177,12 +205,58 @@ app.post("/news", async (req, res) => {
         icon,
         publishedDate,
         externalLink,
+        imageUrl,
+        isFeatured: isFeatured ?? false,
+        featuredUntil: featuredUntil ? new Date(featuredUntil) : null,
       })
       .returning();
+
     res.status(201).json(newNews);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create news" });
+  }
+});
+
+// ================= FEATURE / UNFEATURE NEWS (manual selection by dev) =================
+app.patch("/news/:id/feature", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { featuredUntil } = req.body;
+
+    if (!featuredUntil) {
+      return res.status(400).json({ error: "featuredUntil is required" });
+    }
+
+    const [updated] = await db
+      .update(news)
+      .set({ isFeatured: true, featuredUntil: new Date(featuredUntil) })
+      .where(eq(news.newsId, id))
+      .returning();
+
+    if (!updated) return res.status(404).json({ error: "News not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to feature news" });
+  }
+});
+
+app.patch("/news/:id/unfeature", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const [updated] = await db
+      .update(news)
+      .set({ isFeatured: false, featuredUntil: null })
+      .where(eq(news.newsId, id))
+      .returning();
+
+    if (!updated) return res.status(404).json({ error: "News not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to unfeature news" });
   }
 });
 
