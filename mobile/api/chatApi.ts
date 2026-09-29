@@ -1,5 +1,5 @@
 const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://172.20.10.2:3000";
+  process.env.EXPO_PUBLIC_API_URL ?? "http://192.168.1.108:8000";
 
 export type ChatResponse = {
   answer: string;

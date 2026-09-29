@@ -22,6 +22,7 @@ import {
 
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { sendChatMessage } from "../api/chatApi";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -150,27 +151,51 @@ export default function ChatbotScreen() {
      SEND MESSAGE
   ===================================================== */
 
-  const sendMessage = () => {
-    const text = message.trim();
+  const sendMessage = async () => {
+  const text = message.trim();
+  if (!text) return;
 
-    if (!text) return;
+  const userMessage: Message = {
+    id: Date.now().toString(),
+    sender: "user",
+    text,
+  };
 
-    const userMessage: Message = {
+  setMessages((prev) => [
+    ...prev,
+    userMessage,
+  ]);
+
+  setMessage("");
+
+  try {
+    const result = await sendChatMessage(text);
+
+    const botMessage: Message = {
       id: Date.now().toString(),
-      sender: "user",
-      text,
+      sender: "bot",
+      text: result.answer,
     };
 
     setMessages((prev) => [
       ...prev,
-      userMessage,
+      botMessage,
     ]);
+  } catch (error) {
+    console.error("Chatbot error:", error);
 
-    setMessage("");
+    const errorMessage: Message = {
+      id: Date.now().toString(),
+      sender: "bot",
+      text: "ขอโทษครับ พี่ดินแดงไม่สามารถเชื่อมต่อระบบได้ในขณะนี้ 😥",
+    };
 
-    // TODO:
-    // เชื่อม API AI Chatbot ตรงนี้
-  };
+    setMessages((prev) => [
+      ...prev,
+      errorMessage,
+    ]);
+  }
+};
 
   /* =====================================================
      SUGGESTION
