@@ -24,25 +24,15 @@ import { useRouter } from "expo-router";
 
 type Event = {
   eventId: string | number;
-
   title: string;
-
   category?: string;
-
   description?: string;
-
-  image?: string;
-
+  imageUrl?: string;
   date?: string;
-
   startTime?: string;
-
   endTime?: string;
-
   location?: string;
-
   sourceUrl?: string;
-
   favorite?: boolean;
 };
 
@@ -71,6 +61,111 @@ const COLORS = {
 /* =========================================================
    EVENT SCREEN
 ========================================================= */
+
+function EventListHeader({
+  categories,
+  activeCategory,
+  setActiveCategory,
+  search,
+  setSearch,
+  filteredEvents,
+}: {
+  categories: string[];
+  activeCategory: string;
+  setActiveCategory: (value: string) => void;
+  search: string;
+  setSearch: (value: string) => void;
+  filteredEvents: Event[];
+}) {
+  return (
+    <View>
+      <View style={styles.searchContainer}>
+        <Ionicons
+          name="search-outline"
+          size={14}
+          color="#77716D"
+        />
+
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          style={styles.searchInput}
+          placeholder="Search events..."
+          placeholderTextColor="#99928E"
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Categories</Text>
+
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={[
+            styles.favoriteIconButton,
+            activeCategory === "Favorites" &&
+              styles.favoriteIconButtonActive,
+          ]}
+          onPress={() =>
+            setActiveCategory(
+              activeCategory === "Favorites" ? "All Events" : "Favorites"
+            )
+          }
+        >
+          <Ionicons
+            name={activeCategory === "Favorites" ? "heart" : "heart-outline"}
+            size={18}
+            color={COLORS.favorite}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        horizontal
+        data={categories}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => {
+          const active = item === activeCategory;
+
+          return (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[
+                styles.categoryChip,
+                active && styles.categoryChipActive,
+              ]}
+              onPress={() => setActiveCategory(item)}
+            >
+              <Text
+                style={[
+                  styles.categoryText,
+                  active && styles.categoryTextActive,
+                ]}
+              >
+                {item}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoriesList}
+      />
+
+      <View style={styles.resultHeader}>
+        <Text style={styles.resultTitle}>
+          {activeCategory === "All Events"
+            ? "Upcoming Events"
+            : activeCategory === "Favorites"
+              ? "Favorite Events"
+              : activeCategory}
+        </Text>
+
+        <Text style={styles.resultCount}>{filteredEvents.length} events</Text>
+      </View>
+    </View>
+  );
+}
 
 export default function EventScreen() {
   const router = useRouter();
@@ -102,16 +197,28 @@ export default function EventScreen() {
         setEvents(
           data.map((event) => ({
             ...event,
-            date: new Date(event.eventDate).toLocaleDateString("en-GB", {
+
+            imageUrl:
+              event.imageUrl ?? undefined,
+
+            date: new Date(
+              event.eventDate
+            ).toLocaleDateString("en-GB", {
               day: "numeric",
               month: "short",
               year: "numeric",
             }),
-            startTime: new Date(event.eventDate).toLocaleTimeString([], {
+
+            startTime: new Date(
+              event.eventDate
+            ).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             }),
-            sourceUrl: event.externalLink ?? undefined,
+
+            sourceUrl:
+              event.externalLink ?? undefined,
+
             favorite: false,
           }))
         );
@@ -264,7 +371,7 @@ export default function EventScreen() {
      JOIN EVENT
      -----------------------------------------------
      เปิดเว็บไซต์ต้นทาง
-  ======================================================= 
+  ======================================================= */
 
   const joinEvent = async (
     event: Event
@@ -287,7 +394,7 @@ export default function EventScreen() {
         error
       );
     }
-  }; */
+  };
 
   /* =======================================================
      SHARE EVENT
@@ -323,140 +430,6 @@ ${event.sourceUrl ?? ""}
   };
 
   /* =======================================================
-     EVENT HEADER
-  ======================================================= */
-
-  const ListHeader = () => {
-    return (
-      <View>
-
-        {/* ================= SEARCH ================= */}
-
-        <View
-          style={
-            styles.searchContainer
-          }
-        >
-          <Ionicons
-            name="search-outline"
-            size={14}
-            color="#77716D"
-          />
-
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            style={styles.searchInput}
-            placeholder="Search events..."
-            placeholderTextColor="#99928E"
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-          />
-        </View>
-
-        {/* ================= CATEGORY ================= */}
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Categories
-          </Text>
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={[
-              styles.favoriteIconButton,
-              activeCategory === "Favorites" &&
-              styles.favoriteIconButtonActive,
-            ]}
-            onPress={() =>
-              setActiveCategory(
-                activeCategory === "Favorites"
-                  ? "All Events"
-                  : "Favorites"
-              )
-            }
-          >
-            <Ionicons
-              name={
-                activeCategory === "Favorites"
-                  ? "heart"
-                  : "heart-outline"
-              }
-              size={18}
-              color={COLORS.favorite}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <FlatList
-          horizontal
-          data={categories}
-          keyExtractor={(item) => item}
-          renderItem={({ item }) => {
-            const active =
-              item === activeCategory;
-
-            return (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={[
-                  styles.categoryChip,
-                  active &&
-                  styles.categoryChipActive,
-                ]}
-                onPress={() =>
-                  setActiveCategory(item)
-                }
-              >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    active &&
-                    styles.categoryTextActive,
-                  ]}
-                >
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-          showsHorizontalScrollIndicator={
-            false
-          }
-          contentContainerStyle={
-            styles.categoriesList
-          }
-        />
-
-        {/* ================= TITLE ================= */}
-
-        <View
-          style={styles.resultHeader}
-        >
-          <Text
-            style={styles.resultTitle}
-          >
-            {activeCategory ===
-              "All Events"
-              ? "Upcoming Events"
-              : activeCategory ===
-                "Favorites"
-                ? "Favorite Events"
-                : activeCategory}
-          </Text>
-
-          <Text
-            style={styles.resultCount}
-          >
-            {filteredEvents.length} events
-          </Text>
-        </View>
-
-      </View>
-    );
-  };
-
-  /* =======================================================
      RENDER
   ======================================================= */
 
@@ -482,7 +455,14 @@ ${event.sourceUrl ?? ""}
         }
 
         ListHeaderComponent={
-          <ListHeader />
+          <EventListHeader
+            categories={categories}
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory}
+            search={search}
+            setSearch={setSearch}
+            filteredEvents={filteredEvents}
+          />
         }
 
         renderItem={({ item }) => (
