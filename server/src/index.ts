@@ -1,5 +1,6 @@
 import express from "express";
 import "dotenv/config";
+import cors from "cors";
 
 import {
   clerkMiddleware,
@@ -64,12 +65,15 @@ function requireAuthJson(
 const app = express();
 
 app.use(
-  express.json()
+  cors({
+    origin: ["http://localhost:8081"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
 
-app.use(
-  clerkMiddleware()
-);
+app.use(express.json());
+
+app.use(clerkMiddleware());
 
 // ทำให้ req.auth ใช้งานได้ทุก route
 // แต่ไม่ได้บังคับให้ login ทุก route
