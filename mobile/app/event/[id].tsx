@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Image,
   Share,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +20,8 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
+
+import { getEventById } from "../../api/api";
 
 /* =========================================================
    COLORS
@@ -44,53 +47,15 @@ const COLORS = {
 
 type EventDetail = {
   eventId: string | number;
-
   title: string;
-
-  category?: string;
-
-  description?: string;
-
-  location?: string;
-
-  eventDate?: string;
-
-  externalLink?: string;
-
-  capacity?: number;
-
-  image?: string;
+  category?: string | null;
+  description?: string | null;
+  location?: string | null;
+  eventDate?: string | null;
+  externalLink?: string | null;
+  capacity?: number | null;
+  image?: string | null;
 };
-
-/* =========================================================
-   MOCK EVENT DATA
-   ---------------------------------------------------------
-   UI ONLY
-========================================================= */
-
-const EVENTS: EventDetail[] = [
-  {
-    eventId: 1,
-
-    title: "KKU Freshmen Orientation",
-
-    category: "University",
-
-    description:
-      "กิจกรรมปฐมนิเทศนักศึกษาใหม่ เพื่อแนะนำข้อมูลที่สำคัญเกี่ยวกับมหาวิทยาลัย การใช้ชีวิตในรั้วมหาวิทยาลัย รวมถึงการทำความรู้จักกับสถานที่และบริการต่าง ๆ ภายในมหาวิทยาลัยขอนแก่น",
-
-    location:
-      "ศูนย์ประชุมและแสดงสินค้านานาชาติ ขอนแก่น",
-
-    eventDate:
-      "2026-08-20T02:00:00.000Z",
-
-    externalLink:
-      "https://kku.ac.th",
-
-    capacity: 500,
-  },
-];
 
 /* =========================================================
    EVENT DETAIL SCREEN
@@ -99,85 +64,121 @@ const EVENTS: EventDetail[] = [
 export default function EventDetailScreen() {
   const router = useRouter();
 
-  const { id } =
-    useLocalSearchParams<{
-      id: string;
-    }>();
+  const { id } = useLocalSearchParams<{
+    id: string;
+  }>();
+
+  const [event, setEvent] = useState<EventDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   console.log("DETAIL ID:", id);
 
   /* =======================================================
-     FIND EVENT
+     FETCH EVENT FROM API / DB
   ======================================================= */
 
-  const event = useMemo(() => {
-    return EVENTS.find(
-      (item) =>
-        String(item.eventId) === String(id)
-    );
+  useEffect(() => {
+    let mounted = true;
+
+    const loadEvent = async () => {
+      if (!id) {
+        setEvent(null);
+        setError("Event ID is missing.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+        setEvent(null);
+
+        const data = await getEventById(String(id));
+
+        if (!mounted) return;
+
+        if (!data) {
+          setEvent(null);
+          setError("Event not found.");
+          return;
+        }
+
+        setEvent({
+          eventId: data.eventId,
+          title: data.title,
+          category: data.category,
+          description: data.description,
+          location: data.location,
+          eventDate: data.eventDate,
+          externalLink: data.externalLink,
+          capacity: data.capacity,
+          image: data.imageUrl,
+        });
+      } catch (err) {
+        console.error("Failed to load event detail:", err);
+
+        if (!mounted) return;
+
+        setEvent(null);
+        setError("Unable to load event.");
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadEvent();
+
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
   /* =======================================================
      DATE
   ======================================================= */
 
-  const formattedDate =
-    useMemo(() => {
-      if (!event?.eventDate) {
-        return "Date not specified";
-      }
+  const formattedDate = useMemo(() => {
+    if (!event?.eventDate) {
+      return "Date not specified";
+    }
 
-      const date =
-        new Date(event.eventDate);
+    const date = new Date(event.eventDate);
 
-      if (
-        Number.isNaN(
-          date.getTime()
-        )
-      ) {
-        return "Date not specified";
-      }
+    if (Number.isNaN(date.getTime())) {
+      return "Date not specified";
+    }
 
-      return date.toLocaleDateString(
-        "en-GB",
-        {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }
-      );
-    }, [event]);
+    return date.toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }, [event?.eventDate]);
 
   /* =======================================================
      TIME
   ======================================================= */
 
-  const formattedTime =
-    useMemo(() => {
-      if (!event?.eventDate) {
-        return "Time not specified";
-      }
+  const formattedTime = useMemo(() => {
+    if (!event?.eventDate) {
+      return "Time not specified";
+    }
 
-      const date =
-        new Date(event.eventDate);
+    const date = new Date(event.eventDate);
 
-      if (
-        Number.isNaN(
-          date.getTime()
-        )
-      ) {
-        return "Time not specified";
-      }
+    if (Number.isNaN(date.getTime())) {
+      return "Time not specified";
+    }
 
-      return date.toLocaleTimeString(
-        [],
-        {
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      );
-    }, [event]);
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, [event?.eventDate]);
 
   /* =======================================================
      SHARE
@@ -189,7 +190,6 @@ export default function EventDetailScreen() {
     try {
       await Share.share({
         title: event.title,
-
         message: `
 ${event.title}
 
@@ -205,10 +205,7 @@ ${event.externalLink ?? ""}
         `.trim(),
       });
     } catch (error) {
-      console.error(
-        "Share event error:",
-        error
-      );
+      console.error("Share event error:", error);
     }
   };
 
@@ -226,60 +223,57 @@ ${event.externalLink ?? ""}
   };
 
   /* =======================================================
-     EVENT NOT FOUND
+     LOADING
+  ======================================================= */
+
+  if (loading) {
+    return (
+      <View style={styles.errorContainer}>
+        <ActivityIndicator
+          size="small"
+          color={COLORS.orange}
+        />
+
+        <Text style={styles.emptyTitle}>
+          Loading event...
+        </Text>
+
+        <Text style={styles.errorText}>
+          Please wait while we load the event details.
+        </Text>
+      </View>
+    );
+  }
+
+  /* =======================================================
+     EVENT NOT FOUND / ERROR
   ======================================================= */
 
   if (!event) {
     return (
-      <View
-        style={
-          styles.errorContainer
-        }
-      >
-        <View
-          style={
-            styles.errorIcon
-          }
-        >
+      <View style={styles.errorContainer}>
+        <View style={styles.errorIcon}>
           <Ionicons
-            name="calendar-outline"
+            name={error === "Event not found." ? "calendar-outline" : "cloud-offline-outline"}
             size={30}
-            color={
-              COLORS.orange
-            }
+            color={COLORS.orange}
           />
         </View>
 
-        <Text
-          style={
-            styles.errorTitle
-          }
-        >
-          Event not found
+        <Text style={styles.errorTitle}>
+          {error === "Event not found." ? "Event not found" : "Unable to load event"}
         </Text>
 
-        <Text
-          style={
-            styles.errorText
-          }
-        >
-          We couldn't find this event.
+        <Text style={styles.errorText}>
+          {error || "We couldn't find this event."}
         </Text>
 
         <TouchableOpacity
           activeOpacity={0.85}
-          style={
-            styles.errorBackButton
-          }
-          onPress={() =>
-            router.back()
-          }
+          style={styles.errorBackButton}
+          onPress={() => router.back()}
         >
-          <Text
-            style={
-              styles.errorBackText
-            }
-          >
+          <Text style={styles.errorBackText}>
             Go Back
           </Text>
         </TouchableOpacity>
@@ -292,44 +286,27 @@ ${event.externalLink ?? ""}
   ======================================================= */
 
   return (
-    <View
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.scrollContent
-        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
-
         {/* =================================================
             BACK BUTTON
         ================================================= */}
 
         <TouchableOpacity
           activeOpacity={0.8}
-          style={
-            styles.topBackButton
-          }
-          onPress={() =>
-            router.back()
-          }
+          style={styles.topBackButton}
+          onPress={() => router.back()}
         >
           <Ionicons
             name="arrow-back"
             size={18}
-            color={
-              COLORS.text
-            }
+            color={COLORS.text}
           />
 
-          <Text
-            style={
-              styles.backText
-            }
-          >
+          <Text style={styles.backText}>
             Back
           </Text>
         </TouchableOpacity>
@@ -338,10 +315,7 @@ ${event.externalLink ?? ""}
             MAIN CARD
         ================================================= */}
 
-        <View
-          style={styles.mainCard}
-        >
-
+        <View style={styles.mainCard}>
           {/* =================================================
               IMAGE
           ================================================= */}
@@ -351,35 +325,19 @@ ${event.externalLink ?? ""}
               source={{
                 uri: event.image,
               }}
-              style={
-                styles.mainImage
-              }
+              style={styles.mainImage}
             />
           ) : (
-            <View
-              style={
-                styles.imagePlaceholder
-              }
-            >
-              <View
-                style={
-                  styles.placeholderIcon
-                }
-              >
+            <View style={styles.imagePlaceholder}>
+              <View style={styles.placeholderIcon}>
                 <Ionicons
                   name="calendar"
                   size={38}
-                  color={
-                    COLORS.orange
-                  }
+                  color={COLORS.orange}
                 />
               </View>
 
-              <Text
-                style={
-                  styles.placeholderText
-                }
-              >
+              <Text style={styles.placeholderText}>
                 KKU EVENT
               </Text>
             </View>
@@ -389,35 +347,20 @@ ${event.externalLink ?? ""}
               CONTENT
           ================================================= */}
 
-          <View
-            style={
-              styles.mainContent
-            }
-          >
-
+          <View style={styles.mainContent}>
             {/* =================================================
                 CATEGORY
             ================================================= */}
 
             {event.category && (
-              <View
-                style={
-                  styles.categoryBadge
-                }
-              >
+              <View style={styles.categoryBadge}>
                 <Ionicons
                   name="calendar-outline"
                   size={12}
-                  color={
-                    COLORS.orange
-                  }
+                  color={COLORS.orange}
                 />
 
-                <Text
-                  style={
-                    styles.categoryText
-                  }
-                >
+                <Text style={styles.categoryText}>
                   {event.category}
                 </Text>
               </View>
@@ -427,11 +370,7 @@ ${event.externalLink ?? ""}
                 TITLE
             ================================================= */}
 
-            <Text
-              style={
-                styles.eventTitle
-              }
-            >
+            <Text style={styles.eventTitle}>
               {event.title}
             </Text>
 
@@ -439,96 +378,46 @@ ${event.externalLink ?? ""}
                 EVENT INFORMATION
             ================================================= */}
 
-            <View
-              style={
-                styles.infoContainer
-              }
-            >
-
+            <View style={styles.infoContainer}>
               {/* LOCATION */}
 
-              <View
-                style={
-                  styles.infoRow
-                }
-              >
-                <View
-                  style={
-                    styles.infoIcon
-                  }
-                >
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
                   <Ionicons
                     name="location-outline"
                     size={17}
-                    color={
-                      COLORS.orange
-                    }
+                    color={COLORS.orange}
                   />
                 </View>
 
-                <View
-                  style={
-                    styles.infoContent
-                  }
-                >
-                  <Text
-                    style={
-                      styles.infoLabel
-                    }
-                  >
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>
                     Location
                   </Text>
 
-                  <Text
-                    style={
-                      styles.infoValue
-                    }
-                  >
-                    {event.location ??
-                      "Location not specified"}
+                  <Text style={styles.infoValue}>
+                    {event.location ?? "Location not specified"}
                   </Text>
                 </View>
               </View>
 
               {/* DATE */}
 
-              <View
-                style={
-                  styles.infoRow
-                }
-              >
-                <View
-                  style={
-                    styles.infoIcon
-                  }
-                >
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
                   <Ionicons
                     name="calendar-outline"
                     size={17}
-                    color={
-                      COLORS.orange
-                    }
+                    color={COLORS.orange}
                   />
                 </View>
 
-                <View
-                  style={
-                    styles.infoContent
-                  }
-                >
-                  <Text
-                    style={
-                      styles.infoLabel
-                    }
-                  >
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>
                     Date
                   </Text>
 
-                  <Text
-                    style={
-                      styles.infoValue
-                    }
-                  >
+                  <Text style={styles.infoValue}>
                     {formattedDate}
                   </Text>
                 </View>
@@ -536,43 +425,21 @@ ${event.externalLink ?? ""}
 
               {/* TIME */}
 
-              <View
-                style={
-                  styles.infoRow
-                }
-              >
-                <View
-                  style={
-                    styles.infoIcon
-                  }
-                >
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
                   <Ionicons
                     name="time-outline"
                     size={17}
-                    color={
-                      COLORS.orange
-                    }
+                    color={COLORS.orange}
                   />
                 </View>
 
-                <View
-                  style={
-                    styles.infoContent
-                  }
-                >
-                  <Text
-                    style={
-                      styles.infoLabel
-                    }
-                  >
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>
                     Time
                   </Text>
 
-                  <Text
-                    style={
-                      styles.infoValue
-                    }
-                  >
+                  <Text style={styles.infoValue}>
                     {formattedTime}
                   </Text>
                 </View>
@@ -580,70 +447,37 @@ ${event.externalLink ?? ""}
 
               {/* CAPACITY */}
 
-              {event.capacity !==
-                undefined && (
-                <View
-                  style={
-                    styles.infoRow
-                  }
-                >
-                  <View
-                    style={
-                      styles.infoIcon
-                    }
-                  >
-                    <Ionicons
-                      name="people-outline"
-                      size={17}
-                      color={
-                        COLORS.orange
-                      }
-                    />
+              {event.capacity !== null &&
+                event.capacity !== undefined && (
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIcon}>
+                      <Ionicons
+                        name="people-outline"
+                        size={17}
+                        color={COLORS.orange}
+                      />
+                    </View>
+
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>
+                        Capacity
+                      </Text>
+
+                      <Text style={styles.infoValue}>
+                        {event.capacity} people
+                      </Text>
+                    </View>
                   </View>
-
-                  <View
-                    style={
-                      styles.infoContent
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.infoLabel
-                      }
-                    >
-                      Capacity
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.infoValue
-                      }
-                    >
-                      {event.capacity}{" "}
-                      people
-                    </Text>
-                  </View>
-                </View>
-              )}
-
+                )}
             </View>
 
             {/* =================================================
                 DESCRIPTION
             ================================================= */}
 
-            <View
-              style={
-                styles.descriptionSection
-              }
-            >
-              <Text
-                style={
-                  styles.description
-                }
-              >
-                {event.description ??
-                  "No description available."}
+            <View style={styles.descriptionSection}>
+              <Text style={styles.description}>
+                {event.description ?? "No description available."}
               </Text>
             </View>
 
@@ -651,22 +485,13 @@ ${event.externalLink ?? ""}
                 ACTIONS
             ================================================= */}
 
-            <View
-              style={
-                styles.actionRow
-              }
-            >
-
+            <View style={styles.actionRow}>
               {/* ADD TO CHECKLIST */}
 
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={
-                  styles.checklistButton
-                }
-                onPress={
-                  addToChecklist
-                }
+                style={styles.checklistButton}
+                onPress={addToChecklist}
               >
                 <Ionicons
                   name="add-circle-outline"
@@ -674,11 +499,7 @@ ${event.externalLink ?? ""}
                   color="#FFFFFF"
                 />
 
-                <Text
-                  style={
-                    styles.checklistButtonText
-                  }
-                >
+                <Text style={styles.checklistButtonText}>
                   Add to Checklist
                 </Text>
               </TouchableOpacity>
@@ -687,24 +508,16 @@ ${event.externalLink ?? ""}
 
               <TouchableOpacity
                 activeOpacity={0.75}
-                style={
-                  styles.shareIconButton
-                }
-                onPress={
-                  shareEvent
-                }
+                style={styles.shareIconButton}
+                onPress={shareEvent}
               >
                 <Ionicons
                   name="share-social-outline"
                   size={20}
-                  color={
-                    COLORS.orange
-                  }
+                  color={COLORS.orange}
                 />
               </TouchableOpacity>
-
             </View>
-
           </View>
         </View>
 
@@ -712,12 +525,7 @@ ${event.externalLink ?? ""}
             BOTTOM SPACE
         ================================================= */}
 
-        <View
-          style={
-            styles.bottomSpace
-          }
-        />
-
+        <View style={styles.bottomSpace} />
       </ScrollView>
     </View>
   );
@@ -727,423 +535,303 @@ ${event.externalLink ?? ""}
    STYLES
 ========================================================= */
 
-const styles =
-  StyleSheet.create({
+const styles = StyleSheet.create({
+  /* =====================================================
+     SCREEN
+  ===================================================== */
 
-    /* =====================================================
-       SCREEN
-    ===================================================== */
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
 
-    container: {
-      flex: 1,
+  scrollContent: {
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 20,
+  },
 
-      backgroundColor:
-        COLORS.background,
+  /* =====================================================
+     BACK
+  ===================================================== */
+
+  topBackButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingVertical: 7,
+    paddingHorizontal: 5,
+    marginBottom: 7,
+  },
+
+  backText: {
+    fontSize: 9.5,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginLeft: 5,
+  },
+
+  /* =====================================================
+     MAIN CARD
+  ===================================================== */
+
+  mainCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 25,
+    overflow: "hidden",
+    marginBottom: 12,
+    shadowColor: "#AFA7A2",
+    shadowOffset: {
+      width: 0,
+      height: 4,
     },
-
-    scrollContent: {
-      paddingHorizontal: 10,
-
-      paddingTop: 8,
-
-      paddingBottom: 20,
-    },
-
-    /* =====================================================
-       BACK
-    ===================================================== */
-
-    topBackButton: {
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      alignSelf:
-        "flex-start",
-
-      paddingVertical: 7,
-
-      paddingHorizontal: 5,
-
-      marginBottom: 7,
-    },
-
-    backText: {
-      fontSize: 9.5,
-
-      fontWeight: "600",
-
-      color: COLORS.text,
-
-      marginLeft: 5,
-    },
-
-    /* =====================================================
-       MAIN CARD
-    ===================================================== */
-
-    mainCard: {
-      backgroundColor:
-        COLORS.white,
-
-      borderRadius: 25,
-
-      overflow: "hidden",
-
-      marginBottom: 12,
-
-      shadowColor:
-        "#AFA7A2",
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      shadowOpacity: 0.09,
-
-      shadowRadius: 9,
-
-      elevation: 3,
-    },
-
-    /* =====================================================
-       IMAGE
-    ===================================================== */
-
-    mainImage: {
-      width: "100%",
-
-      height: 190,
-
-      resizeMode: "cover",
-    },
-
-    imagePlaceholder: {
-      width: "100%",
-
-      height: 190,
-
-      backgroundColor:
-        COLORS.orangeLight,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-    },
-
-    placeholderIcon: {
-      width: 70,
-
-      height: 70,
-
-      borderRadius: 35,
-
-      backgroundColor:
-        COLORS.white,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      marginBottom: 8,
-    },
-
-    placeholderText: {
-      fontSize: 10,
-
-      fontWeight: "800",
-
-      letterSpacing: 1.5,
-
-      color:
-        COLORS.orange,
-    },
-
-    /* =====================================================
-       CONTENT
-    ===================================================== */
-
-    mainContent: {
-      paddingHorizontal: 14,
-
-      paddingVertical: 15,
-    },
-
-    /* =====================================================
-       CATEGORY
-    ===================================================== */
-
-    categoryBadge: {
-      alignSelf:
-        "flex-start",
-
-      height: 27,
-
-      paddingHorizontal: 10,
-
-      borderRadius: 14,
-
-      backgroundColor:
-        COLORS.orangeLight,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      gap: 4,
-
-      marginBottom: 9,
-    },
-
-    categoryText: {
-      fontSize: 8.5,
-
-      fontWeight: "700",
-
-      color:
-        COLORS.orange,
-    },
-
-    /* =====================================================
-       TITLE
-    ===================================================== */
-
-    eventTitle: {
-      fontSize: 20,
-
-      fontWeight: "800",
-
-      color: COLORS.text,
-
-      lineHeight: 26,
-
-      marginBottom: 15,
-    },
-
-    /* =====================================================
-       INFO
-    ===================================================== */
-
-    infoContainer: {
-      marginBottom: 2,
-    },
-
-    infoRow: {
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      marginBottom: 11,
-    },
-
-    infoIcon: {
-      width: 32,
-
-      height: 32,
-
-      borderRadius: 10,
-
-      backgroundColor:
-        COLORS.orangeLight,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      marginRight: 9,
-    },
-
-    infoContent: {
-      flex: 1,
-    },
-
-    infoLabel: {
-      fontSize: 7.5,
-
-      color:
-        COLORS.textLight,
-
-      fontWeight: "600",
-
-      marginBottom: 2,
-    },
-
-    infoValue: {
-      fontSize: 9.5,
-
-      color: COLORS.text,
-
-      fontWeight: "600",
-
-      lineHeight: 14,
-    },
-
-    /* =====================================================
-       DESCRIPTION
-    ===================================================== */
-
-    descriptionSection: {
-      marginTop: 5,
-
-      paddingTop: 12,
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        COLORS.border,
-    },
-
-    description: {
-      fontSize: 8.8,
-
-      lineHeight: 15,
-
-      color:
-        COLORS.textSecondary,
-    },
-
-    /* =====================================================
-       ACTIONS
-    ===================================================== */
-
-    actionRow: {
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      gap: 10,
-
-      marginTop: 17,
-    },
-
-    /* =====================================================
-       CHECKLIST
-    ===================================================== */
-
-    checklistButton: {
-      height: 43,
-
-      flex: 1,
-
-      borderRadius: 22,
-
-      backgroundColor:
-        COLORS.orange,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      gap: 7,
-    },
-
-    checklistButtonText: {
-      fontSize: 9,
-
-      fontWeight: "800",
-
-      color: "#FFFFFF",
-    },
-
-    /* =====================================================
-       SHARE ICON
-    ===================================================== */
-
-    shareIconButton: {
-      width: 43,
-
-      height: 43,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      backgroundColor:
-        "transparent",
-    },
-
-    /* =====================================================
-       ERROR
-    ===================================================== */
-
-    errorContainer: {
-      flex: 1,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      paddingHorizontal: 30,
-
-      backgroundColor:
-        COLORS.background,
-    },
-
-    errorIcon: {
-      width: 64,
-
-      height: 64,
-
-      borderRadius: 32,
-
-      backgroundColor:
-        COLORS.orangeLight,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      marginBottom: 12,
-    },
-
-    errorTitle: {
-      fontSize: 16,
-
-      fontWeight: "800",
-
-      color: COLORS.text,
-    },
-
-    errorText: {
-      fontSize: 9,
-
-      color:
-        COLORS.textLight,
-
-      marginTop: 6,
-
-      textAlign: "center",
-    },
-
-    errorBackButton: {
-      marginTop: 18,
-
-      paddingHorizontal: 20,
-
-      paddingVertical: 10,
-
-      borderRadius: 20,
-
-      backgroundColor:
-        COLORS.orange,
-    },
-
-    errorBackText: {
-      fontSize: 9,
-
-      fontWeight: "700",
-
-      color: "#FFFFFF",
-    },
-
-    /* =====================================================
-       BOTTOM
-    ===================================================== */
-
-    bottomSpace: {
-      height: 20,
-    },
-  });
+    shadowOpacity: 0.09,
+    shadowRadius: 9,
+    elevation: 3,
+  },
+
+  /* =====================================================
+     IMAGE
+  ===================================================== */
+
+  mainImage: {
+    width: "100%",
+    height: 190,
+    resizeMode: "cover",
+  },
+
+  imagePlaceholder: {
+    width: "100%",
+    height: 190,
+    backgroundColor: COLORS.orangeLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  placeholderIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+
+  placeholderText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    color: COLORS.orange,
+  },
+
+  /* =====================================================
+     CONTENT
+  ===================================================== */
+
+  mainContent: {
+    paddingHorizontal: 14,
+    paddingVertical: 15,
+  },
+
+  /* =====================================================
+     CATEGORY
+  ===================================================== */
+
+  categoryBadge: {
+    alignSelf: "flex-start",
+    height: 27,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: COLORS.orangeLight,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 9,
+  },
+
+  categoryText: {
+    fontSize: 8.5,
+    fontWeight: "700",
+    color: COLORS.orange,
+  },
+
+  /* =====================================================
+     TITLE
+  ===================================================== */
+
+  eventTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.text,
+    lineHeight: 26,
+    marginBottom: 15,
+  },
+
+  /* =====================================================
+     INFO
+  ===================================================== */
+
+  infoContainer: {
+    marginBottom: 2,
+  },
+
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 11,
+  },
+
+  infoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: COLORS.orangeLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 9,
+  },
+
+  infoContent: {
+    flex: 1,
+  },
+
+  infoLabel: {
+    fontSize: 7.5,
+    color: COLORS.textLight,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+
+  infoValue: {
+    fontSize: 9.5,
+    color: COLORS.text,
+    fontWeight: "600",
+    lineHeight: 14,
+  },
+
+  /* =====================================================
+     DESCRIPTION
+  ===================================================== */
+
+  descriptionSection: {
+    marginTop: 5,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+
+  description: {
+    fontSize: 8.8,
+    lineHeight: 15,
+    color: COLORS.textSecondary,
+  },
+
+  /* =====================================================
+     ACTIONS
+  ===================================================== */
+
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 17,
+  },
+
+  /* =====================================================
+     CHECKLIST
+  ===================================================== */
+
+  checklistButton: {
+    height: 43,
+    flex: 1,
+    borderRadius: 22,
+    backgroundColor: COLORS.orange,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+
+  checklistButtonText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+
+  /* =====================================================
+     SHARE ICON
+  ===================================================== */
+
+  shareIconButton: {
+    width: 43,
+    height: 43,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+
+  /* =====================================================
+     ERROR / LOADING
+  ===================================================== */
+
+  errorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    backgroundColor: COLORS.background,
+  },
+
+  errorIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.orangeLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+
+  emptyTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginTop: 10,
+  },
+
+  errorText: {
+    fontSize: 9,
+    color: COLORS.textLight,
+    marginTop: 6,
+    textAlign: "center",
+  },
+
+  errorBackButton: {
+    marginTop: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: COLORS.orange,
+  },
+
+  errorBackText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  /* =====================================================
+     BOTTOM
+  ===================================================== */
+
+  bottomSpace: {
+    height: 20,
+  },
+});

@@ -26,7 +26,7 @@ type Place = {
   name: string;
   category: string;
   description?: string;
-  image?: string;
+  imageUrl?: string;
   favorite?: boolean;
 };
 

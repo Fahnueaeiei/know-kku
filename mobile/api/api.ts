@@ -21,6 +21,7 @@ export type ApiEvent = {
   eventDate: string;
   capacity: number | null;
   externalLink: string | null;
+  imageUrl: string | null;
 };
 
 async function request<T>(path: string): Promise<T> {

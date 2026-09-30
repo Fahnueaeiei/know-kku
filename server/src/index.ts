@@ -1,10 +1,13 @@
 import express from "express";
 import "dotenv/config";
+import cors from "cors";
+
 import {
   clerkMiddleware,
   requireAuth,
   getAuth,
 } from "@clerk/express";
+
 import type {
   Request,
   Response,
@@ -12,6 +15,7 @@ import type {
 } from "express";
 
 import { db } from "./db/index.js";
+
 import {
   places,
   checklist,
@@ -19,13 +23,23 @@ import {
   events,
   news,
 } from "./db/schema.js";
-import { eq, and, desc } from "drizzle-orm";
+
+import {
+  eq,
+  and,
+  gt,
+  lte,
+  or,
+  desc,
+} from "drizzle-orm";
 
 // ================= CONFIG =================
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT =
+  Number(process.env.PORT) || 3000;
 
-const DINDANG_API_URL = "http://127.0.0.1:8000";
+const DINDANG_API_URL =
+  "http://127.0.0.1:8000";
 
 // ================= AUTH HELPER =================
 
@@ -34,7 +48,8 @@ function requireAuthJson(
   res: Response,
   next: NextFunction
 ) {
-  const { userId } = getAuth(req);
+  const { userId } =
+    getAuth(req);
 
   if (!userId) {
     return res.status(401).json({
@@ -49,157 +64,245 @@ function requireAuthJson(
 
 const app = express();
 
+app.use(
+  cors({
+    origin: ["http://localhost:8081"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json());
 
 app.use(clerkMiddleware());
+
 // ทำให้ req.auth ใช้งานได้ทุก route
 // แต่ไม่ได้บังคับให้ login ทุก route
 
 // ================= HEALTH =================
 
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-  });
-});
+app.get(
+  "/health",
+  (req, res) => {
+    res.json({
+      status: "ok",
+    });
+  }
+);
 
 // ============================================================
 // P'DIN-DANG CHATBOT
 // Python FastAPI RAG -> Express -> Mobile
 // ============================================================
 
-app.post("/chat", async (req, res) => {
-  try {
-    const { question } = req.body;
+app.post(
+  "/chat",
+  async (req, res) => {
+    try {
+      const {
+        question,
+      } = req.body;
 
-    if (
-      !question ||
-      typeof question !== "string" ||
-      !question.trim()
-    ) {
-      return res.status(400).json({
-        error: "question is required",
-      });
-    }
+      if (
+        !question ||
+        typeof question !==
+          "string" ||
+        !question.trim()
+      ) {
+        return res.status(400).json({
+          error:
+            "question is required",
+        });
+      }
 
-    const chatUrl = "http://127.0.0.1:8000/chat";
+      const chatUrl =
+        "http://127.0.0.1:8000/chat";
 
-    console.log("=================================");
-    console.log("P'Din-Dang Chat");
-    console.log("URL:", chatUrl);
-    console.log("Question:", question);
-    console.log("=================================");
-
-    const response = await fetch(chatUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question: question.trim(),
-      }),
-    });
-
-    console.log("P'Din-Dang status:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      console.error(
-        "P'Din-Dang API error:",
-        response.status,
-        errorText
+      console.log(
+        "================================="
       );
 
-      return res.status(502).json({
-        error: "P'Din-Dang service unavailable",
-      });
+      console.log(
+        "P'Din-Dang Chat"
+      );
+
+      console.log(
+        "URL:",
+        chatUrl
+      );
+
+      console.log(
+        "Question:",
+        question
+      );
+
+      console.log(
+        "================================="
+      );
+
+      const response =
+        await fetch(
+          chatUrl,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              question:
+                question.trim(),
+            }),
+          }
+        );
+
+      console.log(
+        "P'Din-Dang status:",
+        response.status
+      );
+
+      if (!response.ok) {
+        const errorText =
+          await response.text();
+
+        console.error(
+          "P'Din-Dang API error:",
+          response.status,
+          errorText
+        );
+
+        return res
+          .status(502)
+          .json({
+            error:
+              "P'Din-Dang service unavailable",
+          });
+      }
+
+      const data =
+        await response.json();
+
+      console.log(
+        "P'Din-Dang response received"
+      );
+
+      return res.json(
+        data
+      );
+    } catch (err) {
+      console.error(
+        "P'Din-Dang proxy error:",
+        err
+      );
+
+      return res
+        .status(502)
+        .json({
+          error:
+            "Failed to connect to P'Din-Dang service",
+        });
     }
-
-    const data = await response.json();
-
-    console.log("P'Din-Dang response received");
-
-    return res.json(data);
-  } catch (err) {
-    console.error("P'Din-Dang proxy error:", err);
-
-    return res.status(502).json({
-      error: "Failed to connect to P'Din-Dang service",
-    });
   }
-});
+);
 
 // ================= PLACES (public) =================
 
-app.get("/places", async (req, res) => {
-  try {
-    const result =
-      await db.query.places.findMany();
+app.get(
+  "/places",
+  async (req, res) => {
+    try {
+      const result =
+        await db.query.places.findMany();
 
-    res.json(result);
-  } catch (err) {
-    console.error(err);
+      res.json(result);
+    } catch (err) {
+      console.error(err);
 
-    res.status(500).json({
-      error: "Failed to fetch places",
-    });
+      res.status(500).json({
+        error:
+          "Failed to fetch places",
+      });
+    }
   }
-});
+);
 
-app.get("/places/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
+app.get(
+  "/places/:id",
+  async (req, res) => {
+    try {
+      const id =
+        Number(req.params.id);
 
-    const result =
-      await db.query.places.findFirst({
-        where: eq(places.placeId, id),
-        with: {
-          busLines: {
+      const result =
+        await db.query.places.findFirst(
+          {
+            where: eq(
+              places.placeId,
+              id
+            ),
+
             with: {
-              busLine: true,
+              busLines: {
+                with: {
+                  busLine: true,
+                },
+              },
             },
-          },
-        },
-      });
+          }
+        );
 
-    if (!result) {
-      return res.status(404).json({
-        error: "Place not found",
+      if (!result) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Place not found",
+          });
+      }
+
+      res.json(result);
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        error:
+          "Failed to fetch place",
       });
     }
-
-    res.json(result);
-  } catch (err) {
-    console.error(err);
-
-    res.status(500).json({
-      error: "Failed to fetch place",
-    });
   }
-});
+);
 
-app.post("/places", async (req, res) => {
-  try {
-    const {
-      name,
-      category,
-      description,
-      address,
-      latitude,
-      longitude,
-      priceMin,
-      priceMax,
-    } = req.body;
+app.post(
+  "/places",
+  async (req, res) => {
+    try {
+      const {
+        name,
+        category,
+        description,
+        address,
+        latitude,
+        longitude,
+        priceMin,
+        priceMax,
+      } = req.body;
 
-    if (!name || !category) {
-      return res.status(400).json({
-        error: "name and category are required",
-      });
-    }
+      if (
+        !name ||
+        !category
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "name and category are required",
+          });
+      }
 
-    const [newPlace] =
-      await db
+      const [
+        newPlace,
+      ] = await db
         .insert(places)
         .values({
           name,
@@ -213,33 +316,41 @@ app.post("/places", async (req, res) => {
         })
         .returning();
 
-    res.status(201).json(newPlace);
-  } catch (err) {
-    console.error(err);
+      res
+        .status(201)
+        .json(newPlace);
+    } catch (err) {
+      console.error(err);
 
-    res.status(500).json({
-      error: "Failed to create place",
-    });
+      res.status(500).json({
+        error:
+          "Failed to create place",
+      });
+    }
   }
-});
+);
 
-app.put("/places/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
+app.put(
+  "/places/:id",
+  async (req, res) => {
+    try {
+      const id =
+        Number(req.params.id);
 
-    const {
-      name,
-      category,
-      description,
-      address,
-      latitude,
-      longitude,
-      priceMin,
-      priceMax,
-    } = req.body;
+      const {
+        name,
+        category,
+        description,
+        address,
+        latitude,
+        longitude,
+        priceMin,
+        priceMax,
+      } = req.body;
 
-    const [updated] =
-      await db
+      const [
+        updated,
+      ] = await db
         .update(places)
         .set({
           name,
@@ -252,182 +363,299 @@ app.put("/places/:id", async (req, res) => {
           priceMax,
         })
         .where(
-          eq(places.placeId, id)
+          eq(
+            places.placeId,
+            id
+          )
         )
         .returning();
 
-    if (!updated) {
-      return res.status(404).json({
-        error: "Place not found",
+      if (!updated) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Place not found",
+          });
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        error:
+          "Failed to update place",
       });
     }
-
-    res.json(updated);
-  } catch (err) {
-    console.error(err);
-
-    res.status(500).json({
-      error: "Failed to update place",
-    });
   }
-});
+);
 
-app.delete("/places/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
+app.delete(
+  "/places/:id",
+  async (req, res) => {
+    try {
+      const id =
+        Number(req.params.id);
 
-    const [deleted] =
-      await db
+      const [
+        deleted,
+      ] = await db
         .delete(places)
         .where(
-          eq(places.placeId, id)
+          eq(
+            places.placeId,
+            id
+          )
         )
         .returning();
 
-    if (!deleted) {
-      return res.status(404).json({
-        error: "Place not found",
+      if (!deleted) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Place not found",
+          });
+      }
+
+      res.json({
+        success: true,
+        deleted,
+      });
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        error:
+          "Failed to delete place",
       });
     }
-
-    res.json({
-      success: true,
-      deleted,
-    });
-  } catch (err) {
-    console.error(err);
-
-    res.status(500).json({
-      error: "Failed to delete place",
-    });
   }
-});
+);
 
 // ================= EVENTS (public) =================
 
-app.get("/events", async (req, res) => {
-  try {
-    const result =
-      await db.query.events.findMany();
+app.get(
+  "/events",
+  async (req, res) => {
+    try {
+      const result =
+        await db.query.events.findMany();
 
-    res.json(result);
-  } catch (err) {
-    console.error(err);
+      res.json(result);
+    } catch (err) {
+      console.error(err);
 
-    res.status(500).json({
-      error: "Failed to fetch events",
-    });
-  }
-});
-
-app.get("/events/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-
-    const result =
-      await db.query.events.findFirst({
-        where: eq(events.eventId, id),
-      });
-
-    if (!result) {
-      return res.status(404).json({
-        error: "Event not found",
-      });
-    }
-
-    res.json(result);
-  } catch (err) {
-    console.error(err);
-
-    res.status(500).json({
-      error: "Failed to fetch event",
-    });
-  }
-});
-
-app.post("/events", async (req, res) => {
-  try {
-    const {
-      title,
-      category,
-      description,
-      location,
-      eventDate,
-      capacity,
-      externalLink,
-    } = req.body;
-
-    if (!title || !eventDate) {
-      return res.status(400).json({
+      res.status(500).json({
         error:
-          "title and eventDate are required",
+          "Failed to fetch events",
       });
     }
+  }
+);
 
-    const [newEvent] =
-      await db
+app.get(
+  "/events/:id",
+  async (req, res) => {
+    try {
+      const id =
+        Number(req.params.id);
+
+      const result =
+        await db.query.events.findFirst(
+          {
+            where: eq(
+              events.eventId,
+              id
+            ),
+          }
+        );
+
+      if (!result) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Event not found",
+          });
+      }
+
+      res.json(result);
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        error:
+          "Failed to fetch event",
+      });
+    }
+  }
+);
+
+app.post(
+  "/events",
+  async (req, res) => {
+    try {
+      const {
+        title,
+        category,
+        description,
+        location,
+        eventDate,
+        capacity,
+        externalLink,
+        imageUrl,
+      } = req.body;
+
+      if (
+        !title ||
+        !eventDate
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "title and eventDate are required",
+          });
+      }
+
+      const [
+        newEvent,
+      ] = await db
         .insert(events)
         .values({
           title,
           category,
           description,
           location,
-          eventDate: new Date(eventDate),
+          eventDate:
+            new Date(
+              eventDate
+            ),
           capacity,
           externalLink,
+          imageUrl,
         })
         .returning();
 
-    res.status(201).json(newEvent);
-  } catch (err) {
-    console.error(err);
+      res
+        .status(201)
+        .json(newEvent);
+    } catch (err) {
+      console.error(err);
 
-    res.status(500).json({
-      error: "Failed to create event",
-    });
+      res.status(500).json({
+        error:
+          "Failed to create event",
+      });
+    }
   }
-});
+);
 
 // ================= NEWS (public) =================
 
-app.get("/news", async (req, res) => {
-  try {
-    const result =
-      await db.query.news.findMany({
-        orderBy: (news) => [
-          desc(news.publishedDate),
-        ],
-      });
+app.get(
+  "/news",
+  async (req, res) => {
+    try {
+      const isFeaturedQuery =
+        req.query.featured ===
+        "true";
 
-    res.json(result);
-  } catch (err) {
-    console.error(err);
+      const now =
+        new Date();
 
-    res.status(500).json({
-      error: "Failed to fetch news",
-    });
-  }
-});
+      let result;
 
-app.post("/news", async (req, res) => {
-  try {
-    const {
-      title,
-      category,
-      description,
-      icon,
-      publishedDate,
-      externalLink,
-    } = req.body;
+      if (
+        isFeaturedQuery
+      ) {
+        result =
+          await db
+            .select()
+            .from(news)
+            .where(
+              and(
+                eq(
+                  news.isFeatured,
+                  true
+                ),
+                gt(
+                  news.featuredUntil,
+                  now
+                )
+              )
+            )
+            .orderBy(
+              desc(
+                news.publishedDate
+              )
+            );
+      } else {
+        result =
+          await db
+            .select()
+            .from(news)
+            .where(
+              or(
+                eq(
+                  news.isFeatured,
+                  false
+                ),
+                lte(
+                  news.featuredUntil,
+                  now
+                )
+              )
+            )
+            .orderBy(
+              desc(
+                news.publishedDate
+              )
+            );
+      }
 
-    if (!title) {
-      return res.status(400).json({
-        error: "title is required",
+      res.json(result);
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        error:
+          "Failed to fetch news",
       });
     }
+  }
+);
 
-    const [newNews] =
-      await db
+app.post(
+  "/news",
+  async (req, res) => {
+    try {
+      const {
+        title,
+        category,
+        description,
+        icon,
+        publishedDate,
+        externalLink,
+        imageUrl,
+        isFeatured,
+        featuredUntil,
+      } = req.body;
+
+      if (!title) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "title is required",
+          });
+      }
+
+      const [
+        newNews,
+      ] = await db
         .insert(news)
         .values({
           title,
@@ -436,45 +664,178 @@ app.post("/news", async (req, res) => {
           icon,
           publishedDate,
           externalLink,
+          imageUrl,
+
+          isFeatured:
+            isFeatured ??
+            false,
+
+          featuredUntil:
+            featuredUntil
+              ? new Date(
+                  featuredUntil
+                )
+              : null,
         })
         .returning();
 
-    res.status(201).json(newNews);
-  } catch (err) {
-    console.error(err);
+      res
+        .status(201)
+        .json(newNews);
+    } catch (err) {
+      console.error(err);
 
-    res.status(500).json({
-      error: "Failed to create news",
-    });
+      res.status(500).json({
+        error:
+          "Failed to create news",
+      });
+    }
   }
-});
+);
+
+// ================= FEATURE / UNFEATURE NEWS =================
+
+app.patch(
+  "/news/:id/feature",
+  async (req, res) => {
+    try {
+      const id =
+        Number(req.params.id);
+
+      const {
+        featuredUntil,
+      } = req.body;
+
+      if (
+        !featuredUntil
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "featuredUntil is required",
+          });
+      }
+
+      const [
+        updated,
+      ] = await db
+        .update(news)
+        .set({
+          isFeatured: true,
+
+          featuredUntil:
+            new Date(
+              featuredUntil
+            ),
+        })
+        .where(
+          eq(
+            news.newsId,
+            id
+          )
+        )
+        .returning();
+
+      if (!updated) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "News not found",
+          });
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        error:
+          "Failed to feature news",
+      });
+    }
+  }
+);
+
+app.patch(
+  "/news/:id/unfeature",
+  async (req, res) => {
+    try {
+      const id =
+        Number(req.params.id);
+
+      const [
+        updated,
+      ] = await db
+        .update(news)
+        .set({
+          isFeatured: false,
+          featuredUntil:
+            null,
+        })
+        .where(
+          eq(
+            news.newsId,
+            id
+          )
+        )
+        .returning();
+
+      if (!updated) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "News not found",
+          });
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        error:
+          "Failed to unfeature news",
+      });
+    }
+  }
+);
 
 // ================= CHECKLIST =================
 
 // helper:
 // หา internal userId จาก Clerk userId
+
 async function getInternalUserId(
   clerkUserId: string
 ) {
   const user =
-    await db.query.users.findFirst({
-      where: eq(
-        users.clerkUserId,
-        clerkUserId
-      ),
-    });
+    await db.query.users.findFirst(
+      {
+        where: eq(
+          users.clerkUserId,
+          clerkUserId
+        ),
+      }
+    );
 
-  return user?.userId ?? null;
+  return (
+    user?.userId ?? null
+  );
 }
 
 // GET checklist
+
 app.get(
   "/checklist",
   requireAuth(),
   async (req, res) => {
     try {
       const {
-        userId: clerkUserId,
+        userId:
+          clerkUserId,
       } = getAuth(req);
 
       const userId =
@@ -483,19 +844,23 @@ app.get(
         );
 
       if (!userId) {
-        return res.status(404).json({
-          error:
-            "User not found in database",
-        });
+        return res
+          .status(404)
+          .json({
+            error:
+              "User not found in database",
+          });
       }
 
       const result =
-        await db.query.checklist.findMany({
-          where: eq(
-            checklist.userId,
-            userId
-          ),
-        });
+        await db.query.checklist.findMany(
+          {
+            where: eq(
+              checklist.userId,
+              userId
+            ),
+          }
+        );
 
       res.json(result);
     } catch (err) {
@@ -510,13 +875,15 @@ app.get(
 );
 
 // CREATE checklist
+
 app.post(
   "/checklist",
   requireAuth(),
   async (req, res) => {
     try {
       const {
-        userId: clerkUserId,
+        userId:
+          clerkUserId,
       } = getAuth(req);
 
       const userId =
@@ -525,10 +892,12 @@ app.post(
         );
 
       if (!userId) {
-        return res.status(404).json({
-          error:
-            "User not found in database",
-        });
+        return res
+          .status(404)
+          .json({
+            error:
+              "User not found in database",
+          });
       }
 
       const {
@@ -538,23 +907,29 @@ app.post(
       } = req.body;
 
       if (!title) {
-        return res.status(400).json({
-          error: "title is required",
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              "title is required",
+          });
       }
 
-      const [newTask] =
-        await db
-          .insert(checklist)
-          .values({
-            userId,
-            title,
-            description,
-            dueDate,
-          })
-          .returning();
+      const [
+        newTask,
+      ] = await db
+        .insert(checklist)
+        .values({
+          userId,
+          title,
+          description,
+          dueDate,
+        })
+        .returning();
 
-      res.status(201).json(newTask);
+      res
+        .status(201)
+        .json(newTask);
     } catch (err) {
       console.error(err);
 
@@ -567,13 +942,15 @@ app.post(
 );
 
 // UPDATE checklist
+
 app.put(
   "/checklist/:id",
   requireAuth(),
   async (req, res) => {
     try {
       const {
-        userId: clerkUserId,
+        userId:
+          clerkUserId,
       } = getAuth(req);
 
       const userId =
@@ -582,14 +959,18 @@ app.put(
         );
 
       if (!userId) {
-        return res.status(404).json({
-          error:
-            "User not found in database",
-        });
+        return res
+          .status(404)
+          .json({
+            error:
+              "User not found in database",
+          });
       }
 
       const taskId =
-        Number(req.params.id);
+        Number(
+          req.params.id
+        );
 
       const {
         title,
@@ -598,34 +979,37 @@ app.put(
         status,
       } = req.body;
 
-      const [updated] =
-        await db
-          .update(checklist)
-          .set({
-            title,
-            description,
-            dueDate,
-            status,
-          })
-          .where(
-            and(
-              eq(
-                checklist.taskId,
-                taskId
-              ),
-              eq(
-                checklist.userId,
-                userId
-              )
+      const [
+        updated,
+      ] = await db
+        .update(checklist)
+        .set({
+          title,
+          description,
+          dueDate,
+          status,
+        })
+        .where(
+          and(
+            eq(
+              checklist.taskId,
+              taskId
+            ),
+            eq(
+              checklist.userId,
+              userId
             )
           )
-          .returning();
+        )
+        .returning();
 
       if (!updated) {
-        return res.status(404).json({
-          error:
-            "Task not found or not yours",
-        });
+        return res
+          .status(404)
+          .json({
+            error:
+              "Task not found or not yours",
+          });
       }
 
       res.json(updated);
@@ -641,13 +1025,15 @@ app.put(
 );
 
 // DELETE checklist
+
 app.delete(
   "/checklist/:id",
   requireAuth(),
   async (req, res) => {
     try {
       const {
-        userId: clerkUserId,
+        userId:
+          clerkUserId,
       } = getAuth(req);
 
       const userId =
@@ -656,37 +1042,44 @@ app.delete(
         );
 
       if (!userId) {
-        return res.status(404).json({
-          error:
-            "User not found in database",
-        });
+        return res
+          .status(404)
+          .json({
+            error:
+              "User not found in database",
+          });
       }
 
       const taskId =
-        Number(req.params.id);
+        Number(
+          req.params.id
+        );
 
-      const [deleted] =
-        await db
-          .delete(checklist)
-          .where(
-            and(
-              eq(
-                checklist.taskId,
-                taskId
-              ),
-              eq(
-                checklist.userId,
-                userId
-              )
+      const [
+        deleted,
+      ] = await db
+        .delete(checklist)
+        .where(
+          and(
+            eq(
+              checklist.taskId,
+              taskId
+            ),
+            eq(
+              checklist.userId,
+              userId
             )
           )
-          .returning();
+        )
+        .returning();
 
       if (!deleted) {
-        return res.status(404).json({
-          error:
-            "Task not found or not yours",
-        });
+        return res
+          .status(404)
+          .json({
+            error:
+              "Task not found or not yours",
+          });
       }
 
       res.json({
@@ -706,12 +1099,16 @@ app.delete(
 
 // ================= START SERVER =================
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `Server running on http://0.0.0.0:${PORT}`
-  );
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `Server running on http://0.0.0.0:${PORT}`
+    );
 
-  console.log(
-    `P'Din-Dang RAG: ${DINDANG_API_URL}`
-  );
-});
+    console.log(
+      `P'Din-Dang RAG: ${DINDANG_API_URL}`
+    );
+  }
+);
