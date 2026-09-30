@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import traceback
 
 from .rag_service import ask_question
 
@@ -42,7 +43,10 @@ def chat(request: ChatRequest):
         )
 
     except Exception as e:
-        print(f"RAG error: {e}")
+        print("========== RAG ERROR ==========")
+        print(f"Error: {e}")
+        traceback.print_exc()
+        print("================================")
 
         raise HTTPException(
             status_code=500,

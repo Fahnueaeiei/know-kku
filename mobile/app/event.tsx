@@ -492,7 +492,6 @@ ${event.sourceUrl ?? ""}
               router.push(`/event/${item.eventId}`);
             }}
             onToggleFavorite={toggleFavorite}
-            onJoin={joinEvent}
             onShare={shareEvent}
           />
         )}

@@ -30,6 +30,7 @@ type Message = {
   id: string;
   text: string;
   sender: 'bot' | 'user';
+  sources?: string[];
 };
 
 type ChatbotSheetProps = {
@@ -168,67 +169,69 @@ export default function ChatbotSheet({
      SEND MESSAGE
   ===================================================== */
   const renderMessageText = (
-    text: string,
-    isUser: boolean
-  ) => {
-    const urlRegex = /(https?:\/\/[^\s<]+)/g;
-    const parts = text.split(urlRegex);
+  text: string,
+  isUser: boolean
+) => {
+  // สำหรับข้อความจากบอท: ลบ URL ออก
+  // เพราะ URL จะแสดงแยกในส่วน Sources ด้านล่าง
+  const cleanText = isUser
+    ? text
+    : text
+        .replace(/https?:\/\/[^\s<]+/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 
-    return (
-      <Text
-        style={[
-          styles.messageText,
-          isUser && styles.userMessageText,
-        ]}
-      >
-        {parts.map((part, index) => {
-          const isUrl = /^https?:\/\/[^\s<]+$/.test(part);
+  return (
+    <Text
+      style={[
+        styles.messageText,
+        isUser && styles.userMessageText,
+      ]}
+    >
+      {cleanText}
+    </Text>
+  );
+};
 
-          if (isUrl) {
-            // ตัดเครื่องหมาย punctuation ที่อาจติดท้าย URL
-            const match = part.match(/^(.*?)([.,!?;:)\]}]*)$/);
+const renderSources = (sources?: string[]) => {
+  if (!sources || sources.length === 0) {
+    return null;
+  }
 
-            const url = match?.[1] ?? part;
-            const trailing = match?.[2] ?? '';
+  // ลบ URL ที่ซ้ำกัน
+  const uniqueSources = [...new Set(sources)];
 
-            return (
-              <React.Fragment key={index}>
-                <Text
-                  style={styles.linkText}
-                  onPress={async () => {
-                    try {
-                      const supported = await Linking.canOpenURL(url);
+  return (
+    <View style={styles.sourcesContainer}>
+      {uniqueSources.map((url, index) => (
+        <Text
+          key={`${url}-${index}`}
+          style={styles.sourceLink}
+          onPress={async () => {
+            try {
+              const supported = await Linking.canOpenURL(url);
 
-                      if (supported) {
-                        await Linking.openURL(url);
-                      } else {
-                        console.log(
-                          'Cannot open URL:',
-                          url
-                        );
-                      }
-                    } catch (error) {
-                      console.error(
-                        'Open URL error:',
-                        error
-                      );
-                    }
-                  }}
-                >
-                  {url}
-                </Text>
+              if (supported) {
+                await Linking.openURL(url);
+              } else {
+                console.log('Cannot open URL:', url);
+              }
+            } catch (error) {
+              console.error(
+                'Open source URL error:',
+                error
+              );
+            }
+          }}
+        >
+          ดูรายละเอียดเพิ่มเติม
+        </Text>
+      ))}
+    </View>
+  );
+};
 
-                {trailing}
-              </React.Fragment>
-            );
-          }
-
-          return <React.Fragment key={index}>{part}</React.Fragment>;
-        })}
-      </Text>
-    );
-  };
-
+ 
   const sendMessage = async () => {
     const text = message.trim();
 
@@ -257,10 +260,11 @@ export default function ChatbotSheet({
 
       // แสดงคำตอบจาก พี่ดินแดง
       const botMessage: Message = {
-        id: `${Date.now()}-bot`,
-        sender: 'bot',
-        text: result.answer,
-      };
+          id: `${Date.now()}-bot`,
+          sender: 'bot',
+          text: result.answer,
+          sources: result.sources,
+        };
 
       setMessages((prev) => [
         ...prev,
@@ -316,6 +320,7 @@ export default function ChatbotSheet({
       id: `${Date.now()}-bot`,
       sender: 'bot',
       text: result.answer,
+      sources: result.sources,
     };
 
     setMessages((prev) => [
@@ -346,8 +351,10 @@ export default function ChatbotSheet({
   ===================================================== */
 
   if (!visible) {
-    return null;
-  }
+  return null;
+}
+
+console.log("CHATBOT SHEET VISIBLE");
 
   return (
     <View style={styles.overlayContainer}>
@@ -526,8 +533,9 @@ export default function ChatbotSheet({
                   ]}
                 >
 
-
                   {renderMessageText(item.text, item.sender === 'user')}
+
+                  {item.sender === 'bot' && renderSources(item.sources)}
 
 
                 </View>
@@ -610,7 +618,7 @@ export default function ChatbotSheet({
                   style={styles.suggestionButton}
                   onPress={() =>
                     selectSuggestion(
-                      'กยศ. ต้องใช้เอกสารอะไรบ้าง?'
+                      'ปิดเทอมวันไหน?'
                     )
                   }
                   activeOpacity={0.75}
@@ -629,7 +637,7 @@ export default function ChatbotSheet({
                   <Text
                     style={styles.suggestionText}
                   >
-                    กยศ. ต้องใช้เอกสารอะไรบ้าง?
+                    ปิดเทอมวันไหน?
                   </Text>
 
                   <Ionicons
@@ -644,7 +652,7 @@ export default function ChatbotSheet({
                   style={styles.suggestionButton}
                   onPress={() =>
                     selectSuggestion(
-                      'กยศ. ต้องใช้จิตอาสากี่ชั่วโมง?'
+                      'มข. มีทุนอะไรบ้าง?'
                     )
                   }
                   activeOpacity={0.75}
@@ -663,7 +671,7 @@ export default function ChatbotSheet({
                   <Text
                     style={styles.suggestionText}
                   >
-                    กยศ. ต้องใช้จิตอาสากี่ชั่วโมง?
+                    มข. มีทุนอะไรบ้าง?
                   </Text>
 
                   <Ionicons
@@ -744,9 +752,13 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   overlayContainer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    elevation: 9999,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 99999,
+    elevation: 99999,
   },
 
   overlay: {
@@ -1207,4 +1219,14 @@ const styles = StyleSheet.create({
     color: '#1976D2',
     textDecorationLine: 'underline',
   },
+    sourcesContainer: {
+    marginTop: 8,
+  },
+
+  sourceLink: {
+    fontSize: 13,
+    color: '#F26522',
+    fontWeight: '600',
+  },
+
 });

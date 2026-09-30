@@ -1,13 +1,3 @@
-"""
-build_index.py
-================
-อ่านไฟล์ข้อมูล .txt ที่ scrape มา -> แบ่งเป็น chunk เล็ก ๆ
--> แปลงเป็น embedding ด้วย Gemini -> เก็บลง ChromaDB (เก็บถาวรในโฟลเดอร์ local)
-
-รันไฟล์นี้ทุกครั้งที่มีข้อมูลใหม่ หรือข้อมูลเปลี่ยน
-    python build_index.py
-"""
-
 from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
@@ -42,21 +32,46 @@ gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 # ==========================
 
 def load_documents(docs_dir: Path):
-    """อ่านไฟล์ .txt ทั้งหมด แล้วแยกเป็นแต่ละ SOURCE ตาม URL"""
     documents = []
 
-    for txt_file in docs_dir.glob("*.txt"):
-        content = txt_file.read_text(encoding="utf-8")
+    for txt_file in docs_dir.rglob("*.txt"):
+        content = txt_file.read_text(encoding="utf-8").strip()
 
-        # แยกแต่ละ SOURCE ตามรูปแบบที่ scraper.py เขียนไว้
-        blocks = re.split(r"={80}\nSOURCE \d+\nURL: (.+?)\n={80}\n\n", content)
+        if not content:
+            continue
 
-        # blocks[0] จะว่างเปล่า, ตามด้วยคู่ (url, text, url, text, ...)
-        for i in range(1, len(blocks), 2):
-            url = blocks[i].strip()
-            text = blocks[i + 1].strip() if i + 1 < len(blocks) else ""
-            if text:
-                documents.append({"url": url, "text": text, "source_file": txt_file.name})
+        # Existing scraped documents with SOURCE/URL blocks
+        blocks = re.split(
+            r"={80}\nSOURCE \d+\nURL: (.+?)\n={80}\n\n",
+            content,
+        )
+
+        if len(blocks) > 1:
+            for i in range(1, len(blocks), 2):
+                url = blocks[i].strip()
+                text = blocks[i + 1].strip() if i + 1 < len(blocks) else ""
+
+                if text:
+                    documents.append({
+                        "url": url,
+                        "text": text,
+                        "source_file": txt_file.name,
+                    })
+
+        else:
+            # Plain text files that contain a URL header, such as academic calendar
+            url_match = re.search(r"URL:\s*(https?://\S+)", content)
+
+            if url_match:
+                url = url_match.group(1)
+            else:
+                url = f"local://{txt_file.name}"
+
+            documents.append({
+                "url": url,
+                "text": content,
+                "source_file": txt_file.name,
+            })
 
     return documents
 

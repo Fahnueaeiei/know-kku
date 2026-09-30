@@ -51,7 +51,8 @@ SYSTEM_PROMPT = """
 2. ถ้าข้อมูลอ้างอิงไม่มีคำตอบ ให้บอกตรง ๆ ว่าไม่พบข้อมูลในระบบ
    และแนะนำให้ติดต่อกองพัฒนานักศึกษา มข. โดยตรง
 3. ตอบเป็นภาษาไทย กระชับ เข้าใจง่าย
-4. ถ้ามี URL ที่เกี่ยวข้อง ให้แนบท้ายคำตอบด้วย
+4. ห้ามแสดง URL หรือแหล่งที่มาภายในคำตอบ
+5. ระบบจะแสดงแหล่งข้อมูลแยกจากคำตอบเอง
 """
 
 # =========================================================
@@ -134,10 +135,19 @@ def generate_answer(
     สร้างคำตอบจาก Gemini โดยอ้างอิงเฉพาะ context
     """
 
-    context_text = "\n\n".join(
-        f"[แหล่งที่มา: {meta['url']}]\n{chunk}"
-        for chunk, meta in zip(chunks, metadatas)
-    )
+    context_parts = []
+    seen_urls = set()
+
+    for chunk, meta in zip(chunks, metadatas):
+        url = meta.get("url", "")
+
+        if url and url not in seen_urls:
+            context_parts.append(f"[แหล่งที่มา: {url}]\n{chunk}")
+            seen_urls.add(url)
+        else:
+            context_parts.append(chunk)
+
+    context_text = "\n\n".join(context_parts)
 
     prompt = f"""
 {SYSTEM_PROMPT}
