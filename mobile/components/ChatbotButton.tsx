@@ -89,7 +89,10 @@ export default function ChatbotButton({
       >
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={onPress}
+          onPress={() => {
+            console.log("DIN DANG PRESSED");
+            onPress();
+          }}
           style={styles.button}
         >
           <Image
