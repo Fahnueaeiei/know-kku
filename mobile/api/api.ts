@@ -1,8 +1,23 @@
-const API_URL = "http://192.168.1.108:3000";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 
-/* =========================================================
-   TYPES
-========================================================= */
+const PORT = 3000;
+
+function resolveApiUrl() {
+  // An explicit override always wins (.env, tunnel, production)
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+
+  // Web runs on the same machine as the server
+  if (Platform.OS === "web") return `http://localhost:${PORT}`;
+
+  // Phone/emulator: use the same IP that Metro is served from
+  const host = Constants.expoConfig?.hostUri?.split(":")[0];
+  if (host) return `http://${host}:${PORT}`;
+
+  return `http://localhost:${PORT}`;
+}
+
+export const API_URL = resolveApiUrl();
 
 export type ApiPlace = {
   placeId: number;

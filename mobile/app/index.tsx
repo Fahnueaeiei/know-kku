@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import React, {
   useEffect,
   useRef,
@@ -28,8 +26,7 @@ import { useRouter } from 'expo-router';
 import ChatbotButton from '../components/ChatbotButton';
 import ChatbotSheet from '../components/ChatbotSheet';
 
-const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from '../api/api'
 
 /* =========================================================
    DESIGN TOKENS
