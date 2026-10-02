@@ -1,50 +1,144 @@
 // @ts-nocheck
-// Extracted from the repeated header block in HomeScreen / PlaceScreen / EventScreen.
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 
-/**
- * HeadBar
- * Top header shown on Home / Place / Event: "Know KKU" title + user avatar.
- *
- * props:
- *  - avatar: image source (require(...) or { uri })
- *  - onAvatarPress: () => void   // e.g. router.push('/profile')
- */
+import React from 'react';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
+
 export default function HeadBar({ avatar, onAvatarPress }) {
   return (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>
-        Know <Text style={styles.headerTitleAccent}>KKU</Text>
+      
+      {/* APP NAME */}
+      <Text style={styles.title}>
+        Know <Text style={styles.titleAccent}>KKU</Text>
       </Text>
-      <TouchableOpacity onPress={onAvatarPress} disabled={!onAvatarPress}>
-        <Image source={avatar} style={styles.avatar} />
+
+      {/* AVATAR */}
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={onAvatarPress}
+        disabled={!onAvatarPress}
+        style={styles.avatarButton}
+      >
+        {avatar ? (
+          <Image
+            source={avatar}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>
+              U
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  /* =====================================================
+     HEADER
+  ===================================================== */
+
   header: {
+    height: 58,
+
+    width: '100%',
+
+    paddingHorizontal: 16,
+
     flexDirection: 'row',
+
     alignItems: 'center',
+
     justifyContent: 'space-between',
-    marginTop: 12,
-    marginBottom: 16,
+
+    backgroundColor: '#FFFFFF',
+
+    borderBottomWidth: 0.5,
+
+    borderBottomColor: '#F0EBE8',
   },
-  headerTitle: {
-    fontSize: 22,
+
+  /* =====================================================
+     APP TITLE
+  ===================================================== */
+
+  title: {
+    fontSize: 17,
+
     fontWeight: '700',
-    color: '#1a1a1a',
+
+    color: '#252525',
+
+    letterSpacing: -0.3,
   },
-  headerTitleAccent: {
-    color: '#E86A33',
+
+  titleAccent: {
+    color: '#FA7C35',
   },
+
+  /* =====================================================
+     AVATAR BUTTON
+  ===================================================== */
+
+  avatarButton: {
+    width: 38,
+
+    height: 38,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+  /* =====================================================
+     AVATAR
+  ===================================================== */
+
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#E86A33',
+    width: 34,
+
+    height: 34,
+
+    borderRadius: 17,
+
+    borderWidth: 1.2,
+
+    borderColor: '#E8E8E8',
+  },
+
+  /* =====================================================
+     AVATAR PLACEHOLDER
+  ===================================================== */
+
+  avatarPlaceholder: {
+    width: 34,
+
+    height: 34,
+
+    borderRadius: 17,
+
+    backgroundColor: '#F3E8E0',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+  avatarText: {
+    fontSize: 13,
+
+    fontWeight: '700',
+
+    color: '#FA7C35',
   },
 });

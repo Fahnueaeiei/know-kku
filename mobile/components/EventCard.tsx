@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
  * Card used in the "Upcoming Events" list on the Event screen.
  *
  * props:
- *  - event: { id, title, dateLabel, location, image, trending, favorite, joined }
+ *  - event: { eventId, title, date, startTime, location, imageUrl, trending, favorite, joined }
  *  - onPress: (event) => void          // e.g. navigate to detail
  *  - onToggleFavorite: (event) => void
  *  - onToggleJoin: (event) => void
@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 export default function EventCard({ event, onPress, onToggleFavorite, onToggleJoin }) {
   const shareEvent = () => {
     Share.share({
-      message: `${event.title} — ${event.dateLabel} @ ${event.location}`,
+      message: `${event.title} — ${event.date} @ ${event.location}`,
     });
   };
 
@@ -27,7 +27,18 @@ export default function EventCard({ event, onPress, onToggleFavorite, onToggleJo
       onPress={() => onPress?.(event)}
     >
       <View style={styles.imageWrapper}>
-        <Image source={event.image} style={styles.image} />
+        <Image
+          source={event.imageUrl ? { uri: event.imageUrl } : undefined}
+          style={styles.image}
+          resizeMode="cover"
+          onError={(error) =>
+            console.warn(
+              'Event image failed to load:',
+              event.imageUrl,
+              error.nativeEvent
+            )
+          }
+        />
 
         {event.trending && (
           <View style={styles.trendingBadge}>
@@ -53,7 +64,7 @@ export default function EventCard({ event, onPress, onToggleFavorite, onToggleJo
 
       <View style={styles.metaRow}>
         <Ionicons name="calendar-outline" size={14} color="#666" />
-        <Text style={styles.metaText}>{event.dateLabel}</Text>
+        <Text style={styles.metaText}>{event.date}</Text>
       </View>
       <View style={styles.metaRow}>
         <Ionicons name="location-outline" size={14} color="#666" />
@@ -63,7 +74,7 @@ export default function EventCard({ event, onPress, onToggleFavorite, onToggleJo
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={[styles.joinButton, event.joined && styles.joinButtonActive]}
-          onPress={() => onToggleJoin?.(event)}
+          onPress={() => {}}
         >
           <Text style={styles.joinButtonText}>
             {event.joined ? 'Joined' : 'Join Event'}
