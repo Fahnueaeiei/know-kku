@@ -22,7 +22,7 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
-import Confetti from "./Confetti";
+import Confetti from "../components/Confetti";
 
 // ปรับ path ให้ตรงกับโปรเจกต์ (เช่น "@/lib/api")
 import {
