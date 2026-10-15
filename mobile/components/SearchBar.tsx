@@ -1,3 +1,5 @@
+
+
 // @ts-nocheck
 // Extracted from the repeated search-bar block in HomeScreen / PlaceScreen / EventScreen.
 import React from 'react';

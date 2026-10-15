@@ -553,6 +553,295 @@ app.post(
   }
 );
 
+
+/* ================= KKU EVENTS (public) ================= */
+
+const KKU_EVENTS_API_URL =
+  "https://www.kku.ac.th/wp-json/tribe/events/v1/events";
+
+const KKU_EVENTS_TIMEOUT_MS = 10_000;
+
+type KkuWpEvent = {
+  id?: number | string;
+  title?: string;
+  excerpt?: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  all_day?: boolean;
+  url?: string;
+  image?: false | {
+    url?: string;
+    sizes?: {
+      medium?: { url?: string };
+      medium_large?: { url?: string };
+    };
+  };
+  venue?: false | {
+    venue?: string;
+  } | [];
+};
+
+function cleanKkuText(value?: string): string {
+  const entities: Record<string, string> = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: '"',
+    apos: "'",
+    nbsp: " ",
+    hellip: "…",
+    ndash: "–",
+    mdash: "—",
+    lsquo: "‘",
+    rsquo: "’",
+    ldquo: "“",
+    rdquo: "”",
+  };
+
+  return (value ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCodePoint(parseInt(hex, 16))
+    )
+    .replace(/&#(\d+);/g, (_, decimal: string) =>
+      String.fromCodePoint(parseInt(decimal, 10))
+    )
+    .replace(/&([a-z]+);/gi, (match, name: string) =>
+      entities[name.toLowerCase()] ?? match
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseKkuDate(value?: string): Date | null {
+  if (!value) return null;
+
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+  );
+
+  if (!match) return null;
+
+  const [, year, month, day, hour = "00", minute = "00", second = "00"] =
+    match;
+
+  const date = new Date(
+    `${year}-${month}-${day}T${hour}:${minute}:${second}+07:00`
+  );
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatKkuDate(
+  start: Date,
+  end: Date,
+  allDay: boolean
+): string {
+  const months = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+  ];
+
+  const getParts = (date: Date) => {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Bangkok",
+      day: "numeric",
+      month: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+
+    const get = (key: string) =>
+      parts.find((part) => part.type === key)?.value ?? "0";
+
+    return {
+      day: Number(get("day")),
+      month: Number(get("month")),
+      hour: Number(get("hour")),
+      minute: Number(get("minute")),
+      dateKey: `${date.toLocaleDateString("en-CA", {
+        timeZone: "Asia/Bangkok",
+      })}`,
+    };
+  };
+
+  const a = getParts(start);
+  const b = getParts(end);
+
+  const label = (p: ReturnType<typeof getParts>) =>
+    `${p.day} ${months[p.month - 1]}`;
+
+  if (a.dateKey !== b.dateKey) {
+    return `${label(a)} – ${label(b)}`;
+  }
+
+  if (allDay) return label(a);
+
+  return `${label(a)} • ${String(a.hour).padStart(2, "0")}:${String(
+    a.minute
+  ).padStart(2, "0")} น.`;
+}
+
+
+
+function normalizeKkuTitle(title: string): string {
+  return cleanKkuText(title)
+    .normalize("NFKC")
+    .toLocaleLowerCase("th-TH")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+app.get("/kku-events", async (req, res) => {
+  const requestedLimit = Number(req.query.limit ?? 6);
+
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(12, Math.max(1, Math.floor(requestedLimit)))
+    : 6;
+
+  const controller = new AbortController();
+
+  const timer = setTimeout(
+    () => controller.abort(),
+    KKU_EVENTS_TIMEOUT_MS
+  );
+
+  try {
+    const todayParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Bangkok",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+
+    const getTodayPart = (key: string) =>
+      todayParts.find((part) => part.type === key)?.value ?? "";
+
+    const today =
+      `${getTodayPart("year")}-${getTodayPart("month")}-${getTodayPart("day")}`;
+
+    const url = new URL(KKU_EVENTS_API_URL);
+    url.searchParams.set("per_page", String(Math.min(limit * 3, 50)));
+    url.searchParams.set("start_date", today);
+
+    const response = await fetch(url.toString(), {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      console.error("KKU Events API status:", response.status);
+
+      return res.status(502).json({
+        error: "Failed to fetch KKU events",
+      });
+    }
+
+    const json: unknown = await response.json();
+
+    const rawEvents =
+      json &&
+      typeof json === "object" &&
+      "events" in json &&
+      Array.isArray(json.events)
+        ? (json.events as KkuWpEvent[])
+        : [];
+
+    
+    const seen = new Set<string>();
+    const seenIdentities = new Set<string>();
+    const result: Array<{
+      id: string;
+      title: string;
+      excerpt: string;
+      dateLabel: string;
+      venue?: string | undefined;
+      imageUrl?: string | undefined;
+      url: string;
+      startTs: number;
+    }> = [];
+
+    for (const raw of rawEvents) {
+      const title = cleanKkuText(raw.title);
+      const start = parseKkuDate(raw.start_date);
+
+      if (!title || !start || !raw.id || !raw.url) continue;
+
+      const end = parseKkuDate(raw.end_date) ?? start;
+
+      const image =
+        raw.image && typeof raw.image === "object"
+          ? raw.image
+          : undefined;
+
+      const imageUrl =
+        image?.sizes?.medium_large?.url ??
+        image?.sizes?.medium?.url ??
+        image?.url ??
+        undefined;
+
+      const venue =
+        raw.venue && !Array.isArray(raw.venue)
+          ? cleanKkuText(raw.venue.venue)
+          : "";
+
+      const titleKey = normalizeKkuTitle(title);
+
+      const startDate = start.toLocaleDateString("en-CA", {
+        timeZone: "Asia/Bangkok",
+      });
+
+      const venueKey = normalizeKkuTitle(venue);
+
+      const identityKey = imageUrl
+        ? `${imageUrl}|${startDate}|${venueKey}`
+        : "";
+
+      if (!titleKey || seen.has(titleKey)) continue;
+
+      if (identityKey && seenIdentities.has(identityKey)) continue;
+
+      seen.add(titleKey);
+
+      if (identityKey) {
+        seenIdentities.add(identityKey);
+      }
+
+      result.push({
+        id: String(raw.id),
+        title,
+        excerpt: cleanKkuText(raw.excerpt || raw.description),
+        dateLabel: formatKkuDate(start, end, Boolean(raw.all_day)),
+        venue: venue || undefined,
+        imageUrl,
+        url: raw.url,
+        startTs: start.getTime(),
+      });
+    }
+    result.sort((a, b) => a.startTs - b.startTs);
+
+    return res.json({
+      events: result.slice(0, limit),
+    });
+
+  } catch (error) {
+    console.error("KKU Events proxy error:", error);
+
+    return res.status(502).json({
+      error:
+        error instanceof Error && error.name === "AbortError"
+          ? "KKU Events API timeout"
+          : "Failed to connect to KKU Events API",
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+
 // ================= NEWS (public) =================
 
 app.get(
