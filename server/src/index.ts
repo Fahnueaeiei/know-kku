@@ -248,6 +248,7 @@ app.get(
                   busLine: true,
                 },
               },
+              weeklyHours: true,
             },
           }
         );

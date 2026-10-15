@@ -10,10 +10,13 @@ import {
   decimal,
   pgEnum,
   primaryKey,
+  time,
 } from "drizzle-orm/pg-core";
+
 import { relations } from "drizzle-orm";
 
 // ---------- Enums ----------
+
 export const itemTypeEnum = pgEnum("item_type", [
   "place",
   "news",
@@ -41,6 +44,7 @@ export const busLineEnum = pgEnum(
 );
 
 // ---------- User ----------
+
 export const users = pgTable("users", {
   userId: serial("user_id").primaryKey(),
 
@@ -64,9 +68,8 @@ export const users = pgTable("users", {
     .notNull()
     .unique(),
 
-  isEmailVerified: boolean(
-    "is_email_verified"
-  ).default(false),
+  isEmailVerified: boolean("is_email_verified")
+    .default(false),
 
   phone: varchar("phone", {
     length: 20,
@@ -76,12 +79,12 @@ export const users = pgTable("users", {
     length: 500,
   }),
 
-  createdAt: timestamp(
-    "created_at"
-  ).defaultNow(),
+  createdAt: timestamp("created_at")
+    .defaultNow(),
 });
 
 // ---------- Place ----------
+
 export const places = pgTable("places", {
   placeId: serial("place_id").primaryKey(),
 
@@ -116,9 +119,50 @@ export const places = pgTable("places", {
   priceMin: integer("price_min"),
 
   priceMax: integer("price_max"),
+
+  // Legacy fields retained for compatibility.
+  // The places_opening_hours table stores hours per day.
+  openingHours: time("opening_hours", {
+    precision: 0,
+  }),
+
+  closingHours: time("closing_hours", {
+    precision: 0,
+  }),
 });
 
+// ---------- Place Opening Hours ----------
+
+export const placesOpeningHours = pgTable(
+  "places_opening_hours",
+  {
+    id: serial("id").primaryKey(),
+
+    placeId: integer("place_id")
+      .references(() => places.placeId, {
+        onDelete: "cascade",
+      })
+      .notNull(),
+
+    // 1 = Monday, 2 = Tuesday, ... 7 = Sunday
+    dayOfWeek: integer("day_of_week").notNull(),
+
+    openingTime: time("opening_time", {
+      precision: 0,
+    }),
+
+    closingTime: time("closing_time", {
+      precision: 0,
+    }),
+
+    isClosed: boolean("is_closed")
+      .notNull()
+      .default(false),
+  }
+);
+
 // ---------- Room ----------
+
 export const rooms = pgTable("rooms", {
   roomId: serial("room_id").primaryKey(),
 
@@ -132,6 +176,7 @@ export const rooms = pgTable("rooms", {
 });
 
 // ---------- Bus Lines ----------
+
 export const busLines = pgTable("bus_lines", {
   busLineId: serial("bus_line_id").primaryKey(),
 
@@ -162,11 +207,11 @@ export const placeBusLines = pgTable(
 );
 
 // ---------- Place Reviews ----------
+
 export const placeReviews = pgTable(
   "place_reviews",
   {
-    reviewId: serial("review_id")
-      .primaryKey(),
+    reviewId: serial("review_id").primaryKey(),
 
     placeId: integer("place_id")
       .references(() => places.placeId)
@@ -181,13 +226,13 @@ export const placeReviews = pgTable(
 
     comment: text("comment"),
 
-    createdAt: timestamp(
-      "created_at"
-    ).defaultNow(),
+    createdAt: timestamp("created_at")
+      .defaultNow(),
   }
 );
 
 // ---------- News ----------
+
 export const news = pgTable("news", {
   newsId: serial("news_id").primaryKey(),
 
@@ -203,42 +248,31 @@ export const news = pgTable("news", {
 
   icon: varchar("icon", {
     length: 100,
-  }), // Ionicons เช่น "bulb-outline"
+  }),
 
-  publishedDate: date(
-    "published_date"
-  ),
+  publishedDate: date("published_date"),
 
-  externalLink: varchar(
-    "external_link",
-    {
-      length: 500,
-    }
-  ),
+  externalLink: varchar("external_link", {
+    length: 500,
+  }),
 
-  imageUrl: varchar(
-    "image_url",
-    {
-      length: 500,
-    }
-  ),
+  imageUrl: varchar("image_url", {
+    length: 500,
+  }),
 
-  isFeatured: boolean(
-    "is_featured"
-  ).default(false),
+  isFeatured: boolean("is_featured")
+    .default(false),
 
-  featuredUntil: timestamp(
-    "featured_until"
-  ),
+  featuredUntil: timestamp("featured_until"),
 });
 
 // ---------- Documents ----------
+
 export const documents = pgTable(
   "documents",
   {
-    documentId: serial(
-      "document_id"
-    ).primaryKey(),
+    documentId: serial("document_id")
+      .primaryKey(),
 
     title: varchar("title", {
       length: 255,
@@ -248,121 +282,85 @@ export const documents = pgTable(
       length: 100,
     }),
 
-    description: text(
-      "description"
-    ),
+    description: text("description"),
 
-    fileUrl: varchar(
-      "file_url",
-      {
-        length: 500,
-      }
-    ),
+    fileUrl: varchar("file_url", {
+      length: 500,
+    }),
 
-    externalLink: varchar(
-      "external_link",
-      {
-        length: 500,
-      }
-    ),
+    externalLink: varchar("external_link", {
+      length: 500,
+    }),
 
-    publishedDate: date(
-      "published_date"
-    ),
+    publishedDate: date("published_date"),
 
-    createdAt: timestamp(
-      "created_at"
-    ).defaultNow(),
+    createdAt: timestamp("created_at")
+      .defaultNow(),
   }
 );
 
 // ---------- Favorite ----------
+
 export const favorites = pgTable(
   "favorites",
   {
-    favoriteId: serial(
-      "favorite_id"
-    ).primaryKey(),
+    favoriteId: serial("favorite_id")
+      .primaryKey(),
 
     userId: integer("user_id")
       .references(() => users.userId)
       .notNull(),
 
-    itemType: itemTypeEnum(
-      "item_type"
-    ).notNull(),
+    itemType: itemTypeEnum("item_type")
+      .notNull(),
 
-    itemId: integer(
-      "item_id"
-    ).notNull(),
+    itemId: integer("item_id")
+      .notNull(),
 
-    createdAt: timestamp(
-      "created_at"
-    ).defaultNow(),
+    createdAt: timestamp("created_at")
+      .defaultNow(),
   }
 );
 
 // ---------- Event ----------
-export const events = pgTable(
-  "events",
-  {
-    eventId: serial(
-      "event_id"
-    ).primaryKey(),
 
-    title: varchar("title", {
-      length: 255,
-    }).notNull(),
+export const events = pgTable("events", {
+  eventId: serial("event_id").primaryKey(),
 
-    category: varchar(
-      "category",
-      {
-        length: 100,
-      }
-    ),
+  title: varchar("title", {
+    length: 255,
+  }).notNull(),
 
-    description: text(
-      "description"
-    ),
+  category: varchar("category", {
+    length: 100,
+  }),
 
-    location: varchar(
-      "location",
-      {
-        length: 255,
-      }
-    ),
+  description: text("description"),
 
-    eventDate: timestamp(
-      "event_date"
-    ).notNull(),
+  location: varchar("location", {
+    length: 255,
+  }),
 
-    capacity: integer(
-      "capacity"
-    ),
+  eventDate: timestamp("event_date")
+    .notNull(),
 
-    externalLink: varchar(
-      "external_link",
-      {
-        length: 500,
-      }
-    ),
+  capacity: integer("capacity"),
 
-    imageUrl: varchar(
-      "image_url",
-      {
-        length: 500,
-      }
-    ),
-  }
-);
+  externalLink: varchar("external_link", {
+    length: 500,
+  }),
+
+  imageUrl: varchar("image_url", {
+    length: 500,
+  }),
+});
 
 // ---------- Checklist ----------
+
 export const checklist = pgTable(
   "checklist",
   {
-    taskId: serial(
-      "task_id"
-    ).primaryKey(),
+    taskId: serial("task_id").primaryKey(),
 
     userId: integer("user_id")
       .references(() => users.userId)
@@ -375,203 +373,188 @@ export const checklist = pgTable(
       length: 255,
     }).notNull(),
 
-    description: text(
-      "description"
-    ),
+    description: text("description"),
 
-    dueDate: date(
-      "due_date"
-    ),
+    dueDate: date("due_date"),
 
-    status: checklistStatusEnum(
-      "status"
-    ).default("pending"),
+    status: checklistStatusEnum("status")
+      .default("pending"),
 
-    isDefault: boolean(
-      "is_default"
-    ).default(false),
+    isDefault: boolean("is_default")
+      .default(false),
   }
 );
 
-// ---------- EventParticipant ----------
-export const eventParticipants =
-  pgTable(
-    "event_participants",
-    {
-      eventId: integer(
-        "event_id"
-      )
-        .references(() => events.eventId)
-        .notNull(),
+// ---------- Event Participant ----------
 
-      userId: integer(
-        "user_id"
-      )
-        .references(() => users.userId)
-        .notNull(),
+export const eventParticipants = pgTable(
+  "event_participants",
+  {
+    eventId: integer("event_id")
+      .references(() => events.eventId)
+      .notNull(),
 
-      joinedAt: timestamp(
-        "joined_at"
-      ).defaultNow(),
-    },
-    (t) => ({
-      pk: primaryKey({
-        columns: [
-          t.eventId,
-          t.userId,
-        ],
-      }),
-    })
-  );
+    userId: integer("user_id")
+      .references(() => users.userId)
+      .notNull(),
+
+    joinedAt: timestamp("joined_at")
+      .defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({
+      columns: [
+        t.eventId,
+        t.userId,
+      ],
+    }),
+  })
+);
 
 // ---------- Report ----------
+
 export const reports = pgTable(
   "reports",
   {
-    reportId: serial(
-      "report_id"
-    ).primaryKey(),
+    reportId: serial("report_id")
+      .primaryKey(),
 
     userId: integer("user_id")
       .references(() => users.userId)
       .notNull(),
 
-    targetType: reportTargetEnum(
-      "target_type"
-    ).notNull(),
+    targetType: reportTargetEnum("target_type")
+      .notNull(),
 
-    targetId: integer(
-      "target_id"
-    ).notNull(),
+    targetId: integer("target_id")
+      .notNull(),
 
     reason: text("reason"),
 
-    status: reportStatusEnum(
-      "status"
-    ).default("pending"),
+    status: reportStatusEnum("status")
+      .default("pending"),
 
-    createdAt: timestamp(
-      "created_at"
-    ).defaultNow(),
+    createdAt: timestamp("created_at")
+      .defaultNow(),
   }
 );
 
-// ---------- ChatLog ----------
+// ---------- Chat Log ----------
+
 export const chatLogs = pgTable(
   "chat_logs",
   {
-    chatId: serial(
-      "chat_id"
-    ).primaryKey(),
+    chatId: serial("chat_id").primaryKey(),
 
     userId: integer("user_id")
       .references(() => users.userId)
       .notNull(),
 
-    question: text(
-      "question"
-    ).notNull(),
+    question: text("question")
+      .notNull(),
 
-    answer: text(
-      "answer"
-    ).notNull(),
+    answer: text("answer")
+      .notNull(),
 
-    createdAt: timestamp(
-      "created_at"
-    ).defaultNow(),
+    createdAt: timestamp("created_at")
+      .defaultNow(),
   }
 );
 
-// ---------- Relations ----------
-export const usersRelations =
-  relations(
-    users,
-    ({ many }) => ({
-      checklist: many(
-        checklist
-      ),
+// ---------- Relations: Users ----------
 
-      favorites: many(
-        favorites
-      ),
+export const usersRelations = relations(
+  users,
+  ({ many }) => ({
+    checklist: many(checklist),
 
-      placeReviews: many(
-        placeReviews
-      ),
+    favorites: many(favorites),
 
-      reports: many(
-        reports
-      ),
+    placeReviews: many(placeReviews),
 
-      chatLogs: many(
-        chatLogs
-      ),
-    })
-  );
+    reports: many(reports),
 
-export const placesRelations =
-  relations(
-    places,
-    ({ many }) => ({
-      rooms: many(rooms),
+    chatLogs: many(chatLogs),
+  })
+);
 
-      reviews: many(
-        placeReviews
-      ),
+// ---------- Relations: Places ----------
 
-      busLines: many(
-        placeBusLines
-      ),
-    })
-  );
+export const placesRelations = relations(
+  places,
+  ({ many }) => ({
+    rooms: many(rooms),
 
-export const placeReviewsRelations =
-  relations(
-    placeReviews,
-    ({ one }) => ({
-      place: one(places, {
-        fields: [
-          placeReviews.placeId,
-        ],
-        references: [
-          places.placeId,
-        ],
-      }),
+    reviews: many(placeReviews),
 
-      user: one(users, {
-        fields: [
-          placeReviews.userId,
-        ],
-        references: [
-          users.userId,
-        ],
-      }),
-    })
-  );
+    busLines: many(placeBusLines),
 
-export const placeBusLinesRelations =
-  relations(
-    placeBusLines,
-    ({ one }) => ({
-      place: one(places, {
-        fields: [
-          placeBusLines.placeId,
-        ],
-        references: [
-          places.placeId,
-        ],
-      }),
+    weeklyHours: many(placesOpeningHours),
+  })
+);
 
-      busLine: one(
-        busLines,
-        {
-          fields: [
-            placeBusLines.busLineId,
-          ],
-          references: [
-            busLines.busLineId,
-          ],
-        }
-      ),
-    })
-  );
+// ---------- Relations: Place Reviews ----------
+
+export const placeReviewsRelations = relations(
+  placeReviews,
+  ({ one }) => ({
+    place: one(places, {
+      fields: [
+        placeReviews.placeId,
+      ],
+      references: [
+        places.placeId,
+      ],
+    }),
+
+    user: one(users, {
+      fields: [
+        placeReviews.userId,
+      ],
+      references: [
+        users.userId,
+      ],
+    }),
+  })
+);
+
+// ---------- Relations: Place Bus Lines ----------
+
+export const placeBusLinesRelations = relations(
+  placeBusLines,
+  ({ one }) => ({
+    place: one(places, {
+      fields: [
+        placeBusLines.placeId,
+      ],
+      references: [
+        places.placeId,
+      ],
+    }),
+
+    busLine: one(busLines, {
+      fields: [
+        placeBusLines.busLineId,
+      ],
+      references: [
+        busLines.busLineId,
+      ],
+    }),
+  })
+);
+
+// ---------- Relations: Place Opening Hours ----------
+
+export const placesOpeningHoursRelations = relations(
+  placesOpeningHours,
+  ({ one }) => ({
+    place: one(places, {
+      fields: [
+        placesOpeningHours.placeId,
+      ],
+      references: [
+        places.placeId,
+      ],
+    }),
+  })
+);

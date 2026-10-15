@@ -35,6 +35,7 @@ const COLORS = {
   border: "#EFE8E4",
 
   red: "#E63946",
+  favorite: "#E63946",
 
   green: "#55A76A",
   blue: "#4BA6D8",
@@ -42,8 +43,6 @@ const COLORS = {
 
 /* =========================================================
    TYPES
-   -----------------------------------------------
-   โครงสร้างนี้ออกแบบให้ตรงกับ Backend ได้ง่าย
 ========================================================= */
 
 type NearbyPlace = {
@@ -60,6 +59,14 @@ type ShuttleRoute = {
   color: string;
 };
 
+// 1 แถวต่อ 1 วัน (มาจากตาราง places_opening_hours)
+type WeeklyHour = {
+  dayOfWeek: number; // 1 = Mon ... 7 = Sun
+  openingTime: string | null;
+  closingTime: string | null;
+  isClosed: boolean;
+};
+
 type PlaceDetail = {
   placeId: string;
   name: string;
@@ -68,9 +75,13 @@ type PlaceDetail = {
 
   description: string;
 
+  // เวลาเปิด-ปิดแยกตามวัน
+  weeklyHours: WeeklyHour[];
+
+  // legacy: ใช้เป็น fallback ถ้ายังไม่มีข้อมูลรายวัน
   openingHours: {
-    open: string;
-    close: string;
+    open: string | null;
+    close: string | null;
   };
 
   latitude: number;
@@ -79,6 +90,67 @@ type PlaceDetail = {
   shuttleRoutes: ShuttleRoute[];
 
   nearbyPlaces: NearbyPlace[];
+};
+
+/* =========================================================
+   OPENING HOURS HELPERS
+========================================================= */
+
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+type HourGroup = {
+  startDay: number;
+  endDay: number;
+  label: string; // "08:00 - 17:00" หรือ "Closed"
+  closed: boolean;
+};
+
+const formatTime = (t: string | null) => (t ? t.slice(0, 5) : "");
+
+// วันนี้เป็นวันที่เท่าไหร่ (1 = Mon ... 7 = Sun)
+const getTodayDow = () => {
+  const d = new Date().getDay(); // 0 = Sun
+  return d === 0 ? 7 : d;
+};
+
+// รวมวันที่ติดกันและเวลาเหมือนกัน เช่น Mon - Fri 08:00 - 17:00
+const groupWeeklyHours = (rows: WeeklyHour[]): HourGroup[] => {
+  const sorted = [...rows].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  const groups: HourGroup[] = [];
+
+  for (const row of sorted) {
+    const closed =
+      row.isClosed || !row.openingTime || !row.closingTime;
+
+    const label = closed
+      ? "Closed"
+      : `${formatTime(row.openingTime)} - ${formatTime(row.closingTime)}`;
+
+    const last = groups[groups.length - 1];
+
+    if (
+      last &&
+      last.label === label &&
+      last.endDay === row.dayOfWeek - 1
+    ) {
+      last.endDay = row.dayOfWeek;
+    } else {
+      groups.push({
+        startDay: row.dayOfWeek,
+        endDay: row.dayOfWeek,
+        label,
+        closed,
+      });
+    }
+  }
+
+  return groups;
+};
+
+const formatDayRange = (g: HourGroup) => {
+  if (g.startDay === 1 && g.endDay === 7) return "Every day";
+  if (g.startDay === g.endDay) return DAY_NAMES[g.startDay - 1];
+  return `${DAY_NAMES[g.startDay - 1]} - ${DAY_NAMES[g.endDay - 1]}`;
 };
 
 /* =========================================================
@@ -114,7 +186,20 @@ export default function PlaceDetailScreen() {
           image: data.imageUrl
             ? { uri: data.imageUrl }
             : { uri: "https://placehold.co/1200x800/EFF3F6/344054?text=KKU+Place" },
-          openingHours: { open: "Not specified", close: "" },
+
+          // เวลาเปิด-ปิดรายวัน (backend ส่งมาใน weeklyHours)
+          weeklyHours: (data.weeklyHours ?? []).map((h) => ({
+            dayOfWeek: h.dayOfWeek,
+            openingTime: h.openingTime ?? null,
+            closingTime: h.closingTime ?? null,
+            isClosed: !!h.isClosed,
+          })),
+
+          // legacy fallback
+          openingHours: {
+            open: data.openingHours ?? null,
+            close: data.closingHours ?? null,
+          },
           latitude: data.latitude === null ? Number.NaN : Number(data.latitude),
           longitude: data.longitude === null ? Number.NaN : Number(data.longitude),
           shuttleRoutes: (data.busLines ?? []).map((item) => ({
@@ -226,6 +311,16 @@ export default function PlaceDetailScreen() {
   }
 
   /* =======================================================
+     OPENING HOURS (คำนวณก่อน render)
+  ======================================================= */
+
+  const hourGroups = groupWeeklyHours(place.weeklyHours);
+  const todayDow = getTodayDow();
+
+  const hasLegacyHours =
+    !!place.openingHours.open && !!place.openingHours.close;
+
+  /* =======================================================
      MAIN
   ======================================================= */
 
@@ -302,31 +397,80 @@ export default function PlaceDetailScreen() {
               {place.name}
             </Text>
 
-            {/* OPENING HOURS */}
+            {/* OPENING HOURS (รายวัน) */}
 
-            <View style={styles.infoRow}>
+            {hourGroups.length > 0 ? (
+              <View style={styles.hoursRowWrap}>
+                <View style={styles.infoIcon}>
+                  <Ionicons
+                    name="time-outline"
+                    size={15}
+                    color={COLORS.orange}
+                  />
+                </View>
 
-              <View style={styles.infoIcon}>
-                <Ionicons
-                  name="time-outline"
-                  size={15}
-                  color={COLORS.orange}
-                />
+                <View style={styles.hoursContent}>
+                  <Text style={styles.infoLabel}>
+                    Opening Hours
+                  </Text>
+
+                  {hourGroups.map((g) => {
+                    const isToday =
+                      todayDow >= g.startDay &&
+                      todayDow <= g.endDay;
+
+                    return (
+                      <View
+                        key={`${g.startDay}-${g.endDay}`}
+                        style={styles.hoursRow}
+                      >
+                        <Text
+                          style={[
+                            styles.hoursDay,
+                            isToday && styles.hoursToday,
+                          ]}
+                        >
+                          {formatDayRange(g)}
+                        </Text>
+
+                        <Text
+                          style={[
+                            styles.hoursTime,
+                            g.closed && styles.hoursClosed,
+                            isToday && styles.hoursToday,
+                          ]}
+                        >
+                          {g.label}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
+            ) : hasLegacyHours ? (
+              // fallback: ยังไม่มีข้อมูลรายวัน ใช้ค่าเดิม
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
+                  <Ionicons
+                    name="time-outline"
+                    size={15}
+                    color={COLORS.orange}
+                  />
+                </View>
 
-              <View>
-                <Text style={styles.infoLabel}>
-                  Opening Hours
-                </Text>
+                <View>
+                  <Text style={styles.infoLabel}>
+                    Opening Hours
+                  </Text>
 
-                <Text style={styles.infoValue}>
-                  {place.openingHours.open}
-                  {" - "}
-                  {place.openingHours.close}
-                </Text>
+                  <Text style={styles.infoValue}>
+                    {place.openingHours.open.slice(0, 5)}
+                    {" - "}
+                    {place.openingHours.close.slice(0, 5)}
+                  </Text>
+                </View>
               </View>
-
-            </View>
+            ) : null}
 
             {/* DESCRIPTION */}
 
@@ -766,6 +910,54 @@ const styles = StyleSheet.create({
     color: COLORS.text,
 
     fontWeight: "600",
+  },
+
+  /* =======================================================
+     OPENING HOURS (รายวัน)
+  ======================================================= */
+
+  hoursRowWrap: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+
+    marginBottom: 11,
+  },
+
+  hoursContent: {
+    flex: 1,
+  },
+
+  hoursRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+
+    paddingVertical: 2,
+  },
+
+  hoursDay: {
+    fontSize: 9.5,
+
+    color: COLORS.textSecondary,
+
+    fontWeight: "500",
+  },
+
+  hoursTime: {
+    fontSize: 9.5,
+
+    color: COLORS.text,
+
+    fontWeight: "600",
+  },
+
+  hoursClosed: {
+    color: COLORS.red,
+  },
+
+  // ไฮไลต์แถวของวันนี้
+  hoursToday: {
+    fontWeight: "800",
   },
 
   description: {
