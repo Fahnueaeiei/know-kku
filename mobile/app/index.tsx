@@ -1011,85 +1011,86 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }],
   },
 
-  /* SEARCH */
+/* SEARCH */
 
-  searchContainer: {
-    height: 46,
-    width: '100%',
-    borderRadius: 23,
-    backgroundColor: COLORS.white,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 0.5,
-    borderColor: '#F0EBE8',
-    shadowColor: '#AFA7A2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-    elevation: 1,
-  },
+searchContainer: {
+  height: 46,
+  width: '100%',
+  borderRadius: 23,
+  backgroundColor: COLORS.white,
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 16,
+  marginBottom: 10,
+  borderWidth: 0.5,
+  borderColor: '#F0EBE8',
+  shadowColor: '#AFA7A2',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06,
+  shadowRadius: 5,
+  elevation: 1,
+},
 
-  searchInput: {
-    flex: 1,
-    height: 46,
-    marginLeft: 8,
-    paddingVertical: 0,
-    fontSize: 14,
-    color: COLORS.ink,
-  },
+searchInput: {
+  flex: 1,
+  height: 46,
+  marginLeft: 8,
+  paddingVertical: 0,
+  fontSize: 14,
+  color: COLORS.ink,
+},
 
-  clearButton: {
-    width: 26,
-    height: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+clearButton: {
+  width: 26,
+  height: 26,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
 
-  /* HERO / DID YOU KNOW */
+/* HERO / DID YOU KNOW */
 
-  heroShadow: {
-    width: '100%',
-    marginBottom: 18,
-    borderRadius: 28,
-    backgroundColor: COLORS.orange,
-    shadowColor: COLORS.brick,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    elevation: 5,
-  },
+heroShadow: {
+  width: '100%',
+  marginTop: 0,
+  marginBottom: 16,
+  borderRadius: 24,
+  backgroundColor: COLORS.orange,
+  shadowColor: COLORS.brick,
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.18,
+  shadowRadius: 10,
+  elevation: 4,
+},
 
-  heroCard: {
-    width: '100%',
-    height: HERO_HEIGHT,
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: COLORS.orange,
-  },
+heroCard: {
+  width: '100%',
+  height: 195,
+  borderRadius: 15,
+  overflow: 'hidden',
+  backgroundColor: COLORS.orange,
+},
 
-  heroSlide: {
-    height: HERO_HEIGHT,
-    backgroundColor: COLORS.orange,
-  },
+heroSlide: {
+  height: 195,
+  backgroundColor: COLORS.orange,
+},
 
-  heroImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
+heroImage: {
+  ...StyleSheet.absoluteFillObject,
+  width: '100%',
+  height: '100%',
+  resizeMode: 'cover',
+},
 
-  heroDecorLarge: {
-    position: 'absolute',
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    right: -70,
-    top: -80,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-  },
+heroDecorLarge: {
+  position: 'absolute',
+  width: 210,
+  height: 210,
+  borderRadius: 105,
+  right: -60,
+  top: -70,
+  backgroundColor: 'rgba(255,255,255,0.10)',
+},
 
   heroDecorSmall: {
     position: 'absolute',
