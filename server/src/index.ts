@@ -2,7 +2,13 @@ import express from "express";
 import "dotenv/config";
 import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
 import { db } from "./db/index.js";
-import { places, checklist, users, events, posts } from "./db/schema.js";
+import {
+  places,
+  checklist,
+  checklistItems,
+  users,
+  events,
+} from "./db/schema.js";
 import { eq, and } from "drizzle-orm";
 
 const app = express();
@@ -105,19 +111,6 @@ app.get("/events/:id", async (req, res) => {
   }
 });
 
-// ================= POSTS (public) =================
-app.get("/posts", async (req, res) => {
-  try {
-    const result = await db.query.posts.findMany({
-      orderBy: (posts, { desc }) => [desc(posts.createdAt)],
-    });
-    res.json(result);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch posts" });
-  }
-});
-
 // ================= CHECKLIST (protected - ต้อง login) =================
 
 // helper: หา userId ในตาราง users จาก clerkUserId ของ token
@@ -210,6 +203,303 @@ app.delete("/checklist/:id", requireAuth(), async (req, res) => {
     res.status(500).json({ error: "Failed to delete task" });
   }
 });
+
+// ================= CHECKLIST ITEMS (protected) =================
+
+// GET: ดึงรายการย่อยของ task ที่เป็นของ user คนนี้
+app.get(
+  "/checklist/:taskId/items",
+  requireAuth(),
+  async (req, res) => {
+    try {
+      const { userId: clerkUserId } = getAuth(req);
+      const userId = await getInternalUserId(clerkUserId!);
+
+      if (!userId) {
+        return res.status(404).json({
+          error: "User not found in database",
+        });
+      }
+
+      const taskId = Number(req.params.taskId);
+
+      if (!Number.isInteger(taskId) || taskId <= 0) {
+        return res.status(400).json({
+          error: "Invalid task ID",
+        });
+      }
+
+      // ตรวจสอบว่า task เป็นของ user คนนี้
+      const task = await db.query.checklist.findFirst({
+        where: and(
+          eq(checklist.taskId, taskId),
+          eq(checklist.userId, userId)
+        ),
+      });
+
+      if (!task) {
+        return res.status(404).json({
+          error: "Task not found or not yours",
+        });
+      }
+
+      const result = await db.query.checklistItems.findMany({
+        where: eq(checklistItems.taskId, taskId),
+      });
+
+      return res.json(result);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({
+        error: "Failed to fetch checklist items",
+      });
+    }
+  }
+);
+
+// POST: เพิ่มรายการย่อย
+app.post(
+  "/checklist/:taskId/items",
+  requireAuth(),
+  async (req, res) => {
+    try {
+      const { userId: clerkUserId } = getAuth(req);
+      const userId = await getInternalUserId(clerkUserId!);
+
+      if (!userId) {
+        return res.status(404).json({
+          error: "User not found in database",
+        });
+      }
+
+      const taskId = Number(req.params.taskId);
+
+      if (!Number.isInteger(taskId) || taskId <= 0) {
+        return res.status(400).json({
+          error: "Invalid task ID",
+        });
+      }
+
+      const task = await db.query.checklist.findFirst({
+        where: and(
+          eq(checklist.taskId, taskId),
+          eq(checklist.userId, userId)
+        ),
+      });
+
+      if (!task) {
+        return res.status(404).json({
+          error: "Task not found or not yours",
+        });
+      }
+
+      const {
+        title,
+        subtitle,
+        dueDate,
+        dueTime,
+        note,
+        url,
+        location,
+        placeId,
+      } = req.body;
+
+      if (typeof title !== "string" || !title.trim()) {
+        return res.status(400).json({
+          error: "title is required",
+        });
+      }
+
+      const [newItem] = await db
+        .insert(checklistItems)
+        .values({
+          taskId,
+          title: title.trim(),
+          subtitle: subtitle ?? null,
+          dueDate: dueDate || null,
+          dueTime: dueTime || null,
+          note: note ?? null,
+          url: url ?? null,
+          location: location ?? null,
+          placeId: placeId ?? null,
+        })
+        .returning();
+
+      return res.status(201).json(newItem);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({
+        error: "Failed to create checklist item",
+      });
+    }
+  }
+);
+
+// PUT: แก้ไขรายการย่อย
+app.put(
+  "/checklist/items/:itemId",
+  requireAuth(),
+  async (req, res) => {
+    try {
+      const { userId: clerkUserId } = getAuth(req);
+      const userId = await getInternalUserId(clerkUserId!);
+
+      if (!userId) {
+        return res.status(404).json({
+          error: "User not found in database",
+        });
+      }
+
+      const itemId = Number(req.params.itemId);
+
+      if (!Number.isInteger(itemId) || itemId <= 0) {
+        return res.status(400).json({
+          error: "Invalid item ID",
+        });
+      }
+
+      // ค้นหารายการย่อย
+      const item = await db.query.checklistItems.findFirst({
+        where: eq(checklistItems.itemId, itemId),
+      });
+
+      if (!item) {
+        return res.status(404).json({
+          error: "Checklist item not found",
+        });
+      }
+
+      // ตรวจสอบสิทธิ์ผ่าน task เจ้าของรายการย่อย
+      const task = await db.query.checklist.findFirst({
+        where: and(
+          eq(checklist.taskId, item.taskId),
+          eq(checklist.userId, userId)
+        ),
+      });
+
+      if (!task) {
+        return res.status(404).json({
+          error: "Checklist item not found or not yours",
+        });
+      }
+
+      const body = req.body;
+      const updates: Record<string, any> = {};
+
+      if ("title" in body) {
+        if (typeof body.title !== "string" || !body.title.trim()) {
+          return res.status(400).json({
+            error: "title must not be empty",
+          });
+        }
+
+        updates.title = body.title.trim();
+      }
+
+      if ("subtitle" in body) updates.subtitle = body.subtitle;
+      if ("dueDate" in body) updates.dueDate = body.dueDate || null;
+      if ("dueTime" in body) updates.dueTime = body.dueTime || null;
+      if ("note" in body) updates.note = body.note;
+      if ("url" in body) updates.url = body.url;
+      if ("location" in body) updates.location = body.location;
+      if ("placeId" in body) updates.placeId = body.placeId;
+
+      if ("completed" in body) {
+        if (typeof body.completed !== "boolean") {
+          return res.status(400).json({
+            error: "completed must be a boolean",
+          });
+        }
+
+        updates.completed = body.completed;
+        updates.completedAt = body.completed ? new Date() : null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({
+          error: "No fields to update",
+        });
+      }
+
+      const [updated] = await db
+        .update(checklistItems)
+        .set(updates)
+        .where(eq(checklistItems.itemId, itemId))
+        .returning();
+
+      return res.json(updated);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({
+        error: "Failed to update checklist item",
+      });
+    }
+  }
+);
+
+// DELETE: ลบรายการย่อย
+app.delete(
+  "/checklist/items/:itemId",
+  requireAuth(),
+  async (req, res) => {
+    try {
+      const { userId: clerkUserId } = getAuth(req);
+      const userId = await getInternalUserId(clerkUserId!);
+
+      if (!userId) {
+        return res.status(404).json({
+          error: "User not found in database",
+        });
+      }
+
+      const itemId = Number(req.params.itemId);
+
+      if (!Number.isInteger(itemId) || itemId <= 0) {
+        return res.status(400).json({
+          error: "Invalid item ID",
+        });
+      }
+
+      const item = await db.query.checklistItems.findFirst({
+        where: eq(checklistItems.itemId, itemId),
+      });
+
+      if (!item) {
+        return res.status(404).json({
+          error: "Checklist item not found",
+        });
+      }
+
+      const task = await db.query.checklist.findFirst({
+        where: and(
+          eq(checklist.taskId, item.taskId),
+          eq(checklist.userId, userId)
+        ),
+      });
+
+      if (!task) {
+        return res.status(404).json({
+          error: "Checklist item not found or not yours",
+        });
+      }
+
+      const [deleted] = await db
+        .delete(checklistItems)
+        .where(eq(checklistItems.itemId, itemId))
+        .returning();
+
+      return res.json({
+        success: true,
+        deleted,
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({
+        error: "Failed to delete checklist item",
+      });
+    }
+  }
+);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
