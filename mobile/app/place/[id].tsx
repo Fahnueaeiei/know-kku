@@ -98,55 +98,62 @@ type PlaceDetail = {
    เปลี่ยนเป็นข้อมูลจาก Backend ได้ภายหลัง
 ========================================================= */
 
-const MOCK_NEARBY_PLACES: NearbyPlace[] = [
-  {
-    placeId: "mock-nearby-1",
-    name: "University Library",
-    category: "Library",
-    distance: "300 m",
-    image: {
-      uri: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=600",
-    },
-  },
-  {
-    placeId: "mock-nearby-2",
-    name: "Campus Cafe",
-    category: "Cafe",
-    distance: "450 m",
-    image: {
-      uri: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600",
-    },
-  },
-  {
-    placeId: "mock-nearby-3",
-    name: "Campus Restaurant",
-    category: "Restaurant",
-    distance: "600 m",
-    image: {
-      uri: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600",
-    },
-  },
-  {
-    placeId: "mock-nearby-4",
-    name: "Study Space",
-    category: "Study Space",
-    distance: "800 m",
-    image: {
-      uri: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=600",
-    },
-  },
-];
+/* =========================================================
+   NEARBY PLACES (คำนวณจากพิกัดใน DB)
+========================================================= */
 
-/*
-  แยกฟังก์ชันนี้ไว้สำหรับ Nearby โดยเฉพาะ
-  เมื่อ Backend พร้อม ให้เปลี่ยนส่วน return เป็นการเรียก API
-*/
+const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+// สูตร Haversine คืนค่าเป็นเมตร
+const distanceInMeters = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) => {
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+};
+
+const formatDistance = (m: number) =>
+  m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+
 async function getNearbyPlaces(
-  currentPlaceId: string
+  current: { placeId: string | number; latitude: any; longitude: any },
+  limit = 4
 ): Promise<NearbyPlace[]> {
-  return MOCK_NEARBY_PLACES.filter(
-    (item) => item.placeId !== currentPlaceId
-  );
+  if (current.latitude == null || current.longitude == null) return [];
+
+  const lat = Number(current.latitude);
+  const lng = Number(current.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+
+  const all = await getPlaces();
+
+  return all
+    .filter((p) => String(p.placeId) !== String(current.placeId))
+    .filter((p) => p.latitude != null && p.longitude != null)
+    .map((p) => ({
+      item: p,
+      meters: distanceInMeters(lat, lng, Number(p.latitude), Number(p.longitude)),
+    }))
+    .filter(({ meters }) => Number.isFinite(meters))
+    .sort((a, b) => a.meters - b.meters)
+    .slice(0, limit)
+    .map(({ item, meters }) => ({
+      placeId: String(item.placeId),
+      name: item.name,
+      category: item.category,
+      distance: formatDistance(meters),
+      image: item.imageUrl
+        ? { uri: item.imageUrl }
+        : { uri: "https://placehold.co/600x400/EFF3F6/344054?text=KKU+Place" },
+    }));
 }
 
 
@@ -236,9 +243,7 @@ export default function PlaceDetailScreen() {
         setLoading(true);
         const data = await getPlace(id);
 
-        const nearbyPlaces = await getNearbyPlaces(
-          String(data.placeId)
-        );
+        const nearbyPlaces = await getNearbyPlaces(data);
 
         setPlace({
           placeId: String(data.placeId),
