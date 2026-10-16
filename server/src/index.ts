@@ -1,6 +1,7 @@
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
+import extractRouter from "./db/checklistExtract.js";
 
 import {
   clerkMiddleware,
@@ -1184,6 +1185,7 @@ function itemValues(item: DemoItemInput) {
     placeId: item.placeId ?? null,
   };
 }
+   app.use("/checklists", extractRouter);
 
 // GET all Demo checklists, including their items
 app.get("/checklists", async (_req, res) => {

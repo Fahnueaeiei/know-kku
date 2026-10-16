@@ -238,7 +238,7 @@ export default function ChecklistScreen() {
   useEffect(() => {
     getPlaces()
       .then(setPlaces)
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /* ---------- TO-DO / COMPLETED ---------- */
@@ -279,10 +279,10 @@ export default function ChecklistScreen() {
       items: task.items.map((item) =>
         item.itemId === itemId
           ? {
-              ...item,
-              completed: value,
-              completedAt: value ? new Date().toISOString() : null,
-            }
+            ...item,
+            completed: value,
+            completedAt: value ? new Date().toISOString() : null,
+          }
           : item
       ),
     }));
@@ -475,7 +475,14 @@ export default function ChecklistScreen() {
       setDocName(asset.name);
       setFormMode("create");
       setShowCreate(true);
-    } catch {
+    } catch (e: any) {
+      // log ไว้ดูสาเหตุจริงใน terminal
+      console.log(
+        "extract error:",
+        e?.message,
+        e?.response?.status,
+        e?.response?.data
+      );
       Alert.alert(
         "อ่านเอกสารไม่สำเร็จ",
         "ลองใหม่อีกครั้ง หรือสร้างเช็คลิสต์เองก็ได้"
@@ -795,7 +802,7 @@ function TaskCard({
   );
 }
 
-/* ---------- วันที่ + ไอคอนบอกว่ามีรายละเอียด ---------- */
+/* ---------- วันที่ + ไอคอนบอกว่ามีสถานที่/ลิงก์/โน้ต ---------- */
 
 function ItemMeta({ item }: { item: ChecklistItem }) {
   const hasIcons = !!(item.location || item.url || item.note);
@@ -805,10 +812,10 @@ function ItemMeta({ item }: { item: ChecklistItem }) {
   const color = item.completed
     ? "#9A928E"
     : isOverdue(item)
-    ? OVERDUE
-    : item.dueDate === toISODate(new Date())
-    ? TODAY
-    : INK_SOFT;
+      ? OVERDUE
+      : item.dueDate === toISODate(new Date())
+        ? TODAY
+        : INK_SOFT;
 
   return (
     <View style={styles.metaRow}>
@@ -823,7 +830,9 @@ function ItemMeta({ item }: { item: ChecklistItem }) {
       {!!item.location && (
         <Ionicons name="location-outline" size={14} color={INK_SOFT} />
       )}
-      {!!item.url && <Ionicons name="link-outline" size={14} color={INK_SOFT} />}
+      {!!item.url && (
+        <Ionicons name="link-outline" size={14} color={INK_SOFT} />
+      )}
       {!!item.note && (
         <Ionicons name="document-text-outline" size={14} color={INK_SOFT} />
       )}
@@ -918,7 +927,7 @@ function CreateChoiceSheet({
       onRequestClose={onClose}
     >
       <Pressable style={styles.sheetOverlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={styles.sheet} onPress={() => { }}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>สร้างเช็คลิสต์ใหม่</Text>
 
@@ -980,7 +989,9 @@ function PickerField({
   const [show, setShow] = useState(false);
 
   const icon: IconName = mode === "date" ? "calendar-outline" : "time-outline";
-  const minimumDate = mode === "date" ? startOfToday() : undefined;
+  const today = startOfToday();
+  const minimumDate =
+    mode === "date" && !(value && value < today) ? today : undefined;
 
   const clearBtn = (
     <TouchableOpacity
@@ -1360,18 +1371,18 @@ function CreateTaskModal({
       setItems(
         initialDraft.items.length
           ? initialDraft.items.map((i) => ({
-              itemId: i.itemId,
-              completed: i.completed,
-              subtitle: i.subtitle,
-              title: i.title,
-              dueDate: i.dueDate ?? null,
-              dueTime: i.dueTime ?? null,
-              location: i.location ?? "",
-              placeId: i.placeId ?? null,
-              url: i.url ?? "",
-              note: i.note ?? "",
-              open: false,
-            }))
+            itemId: i.itemId,
+            completed: i.completed,
+            subtitle: i.subtitle,
+            title: i.title,
+            dueDate: i.dueDate ?? null,
+            dueTime: i.dueTime ?? null,
+            location: i.location ?? "",
+            placeId: i.placeId ?? null,
+            url: i.url ?? "",
+            note: i.note ?? "",
+            open: false,
+          }))
           : [emptyDraftItem()]
       );
     }
@@ -1436,8 +1447,8 @@ function CreateTaskModal({
             {editing
               ? "Edit Checklist"
               : sourceName
-              ? "Review Checklist"
-              : "Create Checklist"}
+                ? "Review Checklist"
+                : "Create Checklist"}
           </Text>
 
           {!!sourceName && !editing && (

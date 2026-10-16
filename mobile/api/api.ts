@@ -135,6 +135,48 @@ async function request<T>(
 }
 
 /* =========================================================
+   MULTIPART UPLOAD (XHR)
+   fetch รุ่นใหม่ของ Expo ไม่รองรับไฟล์แบบ { uri, name, type }
+   (error: "Unsupported FormDataPart implementation")
+   เลยใช้ XMLHttpRequest ของ React Native ซึ่งยังรองรับอยู่
+========================================================= */
+
+async function uploadForm<T>(
+  path: string,
+  form: FormData,
+  getToken?: GetToken
+): Promise<T> {
+  const token = getToken ? await getToken() : null;
+
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}${path}`);
+
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.setRequestHeader("Accept", "application/json");
+    // ห้ามตั้ง Content-Type เอง ให้ XHR ใส่ boundary ให้
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as T);
+        } catch {
+          reject(new Error("Server did not return valid JSON"));
+        }
+      } else {
+        reject(new Error(`Request failed (${xhr.status}): ${xhr.responseText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.ontimeout = () => reject(new Error("Request timed out"));
+    xhr.timeout = 60000; // อ่านเอกสารอาจใช้เวลานาน
+
+    xhr.send(form);
+  });
+}
+
+/* =========================================================
    PLACES / EVENTS (ของเดิม)
 ========================================================= */
 
@@ -511,7 +553,7 @@ export async function deleteTask(
 export type PickedDocument = {
   uri: string;
   name: string;
-  mimeType?: string;
+  mimeType?: string | null;
 };
 
 export async function extractChecklistFromDocument(
@@ -547,9 +589,5 @@ export async function extractChecklistFromDocument(
     type: file.mimeType ?? "application/octet-stream",
   } as any);
 
-  return request<NewChecklistTask>(
-    "/checklists/extract",
-    { method: "POST", body: form },
-    getToken
-  );
+  return uploadForm<NewChecklistTask>("/checklists/extract", form, getToken);
 }
