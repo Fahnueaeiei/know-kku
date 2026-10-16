@@ -9,37 +9,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Share,
   Alert,
   ActivityIndicator,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
 
-import {
-  useLocalSearchParams,
-  useRouter,
-} from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { getEventById } from "../../api/api";
-
-/* =========================================================
-   COLORS
-========================================================= */
-
-const COLORS = {
-  orange: "#FA7C35",
-  orangeLight: "#FFF0E8",
-
-  background: "#FAF7F5",
-  white: "#FFFFFF",
-
-  text: "#2A2928",
-  textSecondary: "#686360",
-  textLight: "#8E8985",
-
-  border: "#EFE8E4",
-};
+import { COLORS } from "../../constants/appTheme";
 
 /* =========================================================
    TYPES
@@ -64,15 +43,11 @@ type EventDetail = {
 export default function EventDetailScreen() {
   const router = useRouter();
 
-  const { id } = useLocalSearchParams<{
-    id: string;
-  }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  console.log("DETAIL ID:", id);
 
   /* =======================================================
      FETCH EVENT FROM API / DB
@@ -137,19 +112,15 @@ export default function EventDetailScreen() {
   }, [id]);
 
   /* =======================================================
-     DATE
+     DATE / TIME
   ======================================================= */
 
   const formattedDate = useMemo(() => {
-    if (!event?.eventDate) {
-      return "Date not specified";
-    }
+    if (!event?.eventDate) return "Date not specified";
 
     const date = new Date(event.eventDate);
 
-    if (Number.isNaN(date.getTime())) {
-      return "Date not specified";
-    }
+    if (Number.isNaN(date.getTime())) return "Date not specified";
 
     return date.toLocaleDateString("en-GB", {
       weekday: "long",
@@ -159,20 +130,12 @@ export default function EventDetailScreen() {
     });
   }, [event?.eventDate]);
 
-  /* =======================================================
-     TIME
-  ======================================================= */
-
   const formattedTime = useMemo(() => {
-    if (!event?.eventDate) {
-      return "Time not specified";
-    }
+    if (!event?.eventDate) return "Time not specified";
 
     const date = new Date(event.eventDate);
 
-    if (Number.isNaN(date.getTime())) {
-      return "Time not specified";
-    }
+    if (Number.isNaN(date.getTime())) return "Time not specified";
 
     return date.toLocaleTimeString([], {
       hour: "2-digit",
@@ -180,34 +143,7 @@ export default function EventDetailScreen() {
     });
   }, [event?.eventDate]);
 
-  /* =======================================================
-     SHARE
-  ======================================================= */
-
-  const shareEvent = async () => {
-    if (!event) return;
-
-    try {
-      await Share.share({
-        title: event.title,
-        message: `
-${event.title}
-
-📅 ${formattedDate}
-
-⏰ ${formattedTime}
-
-📍 ${event.location ?? "Location not specified"}
-
-${event.description ?? ""}
-
-${event.externalLink ?? ""}
-        `.trim(),
-      });
-    } catch (error) {
-      console.error("Share event error:", error);
-    }
-  };
+  
 
   /* =======================================================
      ADD TO CHECKLIST
@@ -228,19 +164,10 @@ ${event.externalLink ?? ""}
 
   if (loading) {
     return (
-      <View style={styles.errorContainer}>
-        <ActivityIndicator
-          size="small"
-          color={COLORS.orange}
-        />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color={COLORS.orange} />
 
-        <Text style={styles.emptyTitle}>
-          Loading event...
-        </Text>
-
-        <Text style={styles.errorText}>
-          Please wait while we load the event details.
-        </Text>
+        <Text style={styles.loadingText}>Loading event...</Text>
       </View>
     );
   }
@@ -250,18 +177,20 @@ ${event.externalLink ?? ""}
   ======================================================= */
 
   if (!event) {
+    const notFound = error === "Event not found.";
+
     return (
       <View style={styles.errorContainer}>
         <View style={styles.errorIcon}>
           <Ionicons
-            name={error === "Event not found." ? "calendar-outline" : "cloud-offline-outline"}
+            name={notFound ? "calendar-outline" : "cloud-offline-outline"}
             size={30}
-            color={COLORS.orange}
+            color={COLORS.brick}
           />
         </View>
 
         <Text style={styles.errorTitle}>
-          {error === "Event not found." ? "Event not found" : "Unable to load event"}
+          {notFound ? "Event not found" : "Unable to load event"}
         </Text>
 
         <Text style={styles.errorText}>
@@ -270,15 +199,47 @@ ${event.externalLink ?? ""}
 
         <TouchableOpacity
           activeOpacity={0.85}
-          style={styles.errorBackButton}
+          style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Text style={styles.errorBackText}>
-            Go Back
-          </Text>
+          <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
+  }
+
+  /* =======================================================
+     INFO ROWS
+  ======================================================= */
+
+  const infoRows = [
+    {
+      key: "location",
+      icon: "location-outline",
+      label: "Location",
+      value: event.location ?? "Location not specified",
+    },
+    {
+      key: "date",
+      icon: "calendar-outline",
+      label: "Date",
+      value: formattedDate,
+    },
+    {
+      key: "time",
+      icon: "time-outline",
+      label: "Time",
+      value: formattedTime,
+    },
+  ];
+
+  if (event.capacity !== null && event.capacity !== undefined) {
+    infoRows.push({
+      key: "capacity",
+      icon: "people-outline",
+      label: "Capacity",
+      value: `${event.capacity} people`,
+    });
   }
 
   /* =======================================================
@@ -292,202 +253,106 @@ ${event.externalLink ?? ""}
         contentContainerStyle={styles.scrollContent}
       >
         {/* =================================================
-            BACK BUTTON
+            HERO IMAGE + BACK BUTTON
         ================================================= */}
 
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={styles.topBackButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={18}
-            color={COLORS.text}
-          />
-
-          <Text style={styles.backText}>
-            Back
-          </Text>
-        </TouchableOpacity>
-
-        {/* =================================================
-            MAIN CARD
-        ================================================= */}
-
-        <View style={styles.mainCard}>
-          {/* =================================================
-              IMAGE
-          ================================================= */}
-
+        <View style={styles.hero}>
           {event.image ? (
-            <Image
-              source={{
-                uri: event.image,
-              }}
-              style={styles.mainImage}
-            />
+            <>
+              <Image source={{ uri: event.image }} style={styles.heroImage} />
+
+              <View style={styles.heroShade} />
+              <View style={styles.heroShadeBottom} />
+            </>
           ) : (
             <View style={styles.imagePlaceholder}>
               <View style={styles.placeholderIcon}>
-                <Ionicons
-                  name="calendar"
-                  size={38}
-                  color={COLORS.orange}
-                />
+                <Ionicons name="calendar" size={38} color={COLORS.orange} />
               </View>
 
-              <Text style={styles.placeholderText}>
-                KKU EVENT
-              </Text>
+              <Text style={styles.placeholderText}>KKU EVENT</Text>
             </View>
           )}
 
-          {/* =================================================
-              CONTENT
-          ================================================= */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.heroBack}
+            onPress={() => router.back()}
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="arrow-back" size={20} color={COLORS.ink} />
+          </TouchableOpacity>
+        </View>
 
-          <View style={styles.mainContent}>
-            {/* =================================================
-                CATEGORY
-            ================================================= */}
+        <View style={styles.body}>
+          {/* ===============================================
+              MAIN EVENT CARD (ซ้อนทับขอบล่างของรูป)
+          =============================================== */}
 
-            {event.category && (
-              <View style={styles.categoryBadge}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={12}
-                  color={COLORS.orange}
-                />
+          <View style={styles.mainCard}>
+            {/* CATEGORY */}
 
-                <Text style={styles.categoryText}>
-                  {event.category}
-                </Text>
+            {!!event.category && (
+              <View style={styles.chipRow}>
+                <View style={styles.categoryChip}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={13}
+                    color={COLORS.brick}
+                  />
+
+                  <Text style={styles.categoryChipText}>{event.category}</Text>
+                </View>
               </View>
             )}
 
-            {/* =================================================
-                TITLE
-            ================================================= */}
+            {/* TITLE */}
 
-            <Text style={styles.eventTitle}>
-              {event.title}
+            <Text style={styles.eventTitle}>{event.title}</Text>
+
+            {/* EVENT INFORMATION */}
+
+            <View style={styles.infoPanel}>
+              <View style={styles.panelHead}>
+                <View style={styles.panelIcon}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={18}
+                    color={COLORS.brick}
+                  />
+                </View>
+
+                <Text style={styles.panelTitle}>Event Information</Text>
+              </View>
+
+              {infoRows.map((row) => (
+                <View key={row.key} style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Ionicons
+                      name={row.icon}
+                      size={17}
+                      color={COLORS.brick}
+                    />
+                  </View>
+
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>{row.label}</Text>
+
+                    <Text style={styles.infoValue}>{row.value}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            {/* DESCRIPTION */}
+
+            <Text style={styles.description}>
+              {event.description ?? "No description available."}
             </Text>
 
-            {/* =================================================
-                EVENT INFORMATION
-            ================================================= */}
-
-            <View style={styles.infoContainer}>
-              {/* LOCATION */}
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoIcon}>
-                  <Ionicons
-                    name="location-outline"
-                    size={17}
-                    color={COLORS.orange}
-                  />
-                </View>
-
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>
-                    Location
-                  </Text>
-
-                  <Text style={styles.infoValue}>
-                    {event.location ?? "Location not specified"}
-                  </Text>
-                </View>
-              </View>
-
-              {/* DATE */}
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoIcon}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={17}
-                    color={COLORS.orange}
-                  />
-                </View>
-
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>
-                    Date
-                  </Text>
-
-                  <Text style={styles.infoValue}>
-                    {formattedDate}
-                  </Text>
-                </View>
-              </View>
-
-              {/* TIME */}
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoIcon}>
-                  <Ionicons
-                    name="time-outline"
-                    size={17}
-                    color={COLORS.orange}
-                  />
-                </View>
-
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>
-                    Time
-                  </Text>
-
-                  <Text style={styles.infoValue}>
-                    {formattedTime}
-                  </Text>
-                </View>
-              </View>
-
-              {/* CAPACITY */}
-
-              {event.capacity !== null &&
-                event.capacity !== undefined && (
-                  <View style={styles.infoRow}>
-                    <View style={styles.infoIcon}>
-                      <Ionicons
-                        name="people-outline"
-                        size={17}
-                        color={COLORS.orange}
-                      />
-                    </View>
-
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>
-                        Capacity
-                      </Text>
-
-                      <Text style={styles.infoValue}>
-                        {event.capacity} people
-                      </Text>
-                    </View>
-                  </View>
-                )}
-            </View>
-
-            {/* =================================================
-                DESCRIPTION
-            ================================================= */}
-
-            <View style={styles.descriptionSection}>
-              <Text style={styles.description}>
-                {event.description ?? "No description available."}
-              </Text>
-            </View>
-
-            {/* =================================================
-                ACTIONS
-            ================================================= */}
+            {/* ACTIONS */}
 
             <View style={styles.actionRow}>
-              {/* ADD TO CHECKLIST */}
-
               <TouchableOpacity
                 activeOpacity={0.85}
                 style={styles.checklistButton}
@@ -499,31 +364,12 @@ ${event.externalLink ?? ""}
                   color="#FFFFFF"
                 />
 
-                <Text style={styles.checklistButtonText}>
-                  Add to Checklist
-                </Text>
+                <Text style={styles.checklistButtonText}>Add to Checklist</Text>
               </TouchableOpacity>
 
-              {/* SHARE ICON */}
-
-              <TouchableOpacity
-                activeOpacity={0.75}
-                style={styles.shareIconButton}
-                onPress={shareEvent}
-              >
-                <Ionicons
-                  name="share-social-outline"
-                  size={20}
-                  color={COLORS.orange}
-                />
-              </TouchableOpacity>
             </View>
           </View>
         </View>
-
-        {/* =================================================
-            BOTTOM SPACE
-        ================================================= */}
 
         <View style={styles.bottomSpace} />
       </ScrollView>
@@ -536,9 +382,7 @@ ${event.externalLink ?? ""}
 ========================================================= */
 
 const styles = StyleSheet.create({
-  /* =====================================================
-     SCREEN
-  ===================================================== */
+  /* ---------- screen ---------- */
 
   container: {
     flex: 1,
@@ -546,64 +390,45 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
 
-  /* =====================================================
-     BACK
-  ===================================================== */
-
-  topBackButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingVertical: 7,
-    paddingHorizontal: 5,
-    marginBottom: 7,
+  body: {
+    paddingHorizontal: 16,
   },
 
-  backText: {
-    fontSize: 9.5,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginLeft: 5,
-  },
+  /* ---------- hero ---------- */
 
-  /* =====================================================
-     MAIN CARD
-  ===================================================== */
-
-  mainCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 25,
-    overflow: "hidden",
-    marginBottom: 12,
-    shadowColor: "#AFA7A2",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.09,
-    shadowRadius: 9,
-    elevation: 3,
-  },
-
-  /* =====================================================
-     IMAGE
-  ===================================================== */
-
-  mainImage: {
+  hero: {
     width: "100%",
-    height: 190,
+    height: 250,
+    backgroundColor: COLORS.skeleton,
+  },
+
+  heroImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
     resizeMode: "cover",
   },
 
+  heroShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(26,26,26,0.14)",
+  },
+
+  heroShadeBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "45%",
+    backgroundColor: "rgba(40,14,4,0.22)",
+  },
+
   imagePlaceholder: {
-    width: "100%",
-    height: 190,
-    backgroundColor: COLORS.orangeLight,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: COLORS.accentSoft,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -619,77 +444,128 @@ const styles = StyleSheet.create({
   },
 
   placeholderText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1.5,
-    color: COLORS.orange,
+    color: COLORS.brick,
   },
 
-  /* =====================================================
-     CONTENT
-  ===================================================== */
-
-  mainContent: {
-    paddingHorizontal: 14,
-    paddingVertical: 15,
+  heroBack: {
+    position: "absolute",
+    top: 12,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
 
-  /* =====================================================
-     CATEGORY
-  ===================================================== */
+  /* ---------- main card ---------- */
 
-  categoryBadge: {
-    alignSelf: "flex-start",
-    height: 27,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: COLORS.orangeLight,
+  mainCard: {
+    marginTop: -38,
+    backgroundColor: COLORS.white,
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 26,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.brick,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  categoryChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginBottom: 9,
+    gap: 6,
+    backgroundColor: COLORS.cream,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
   },
 
-  categoryText: {
-    fontSize: 8.5,
-    fontWeight: "700",
-    color: COLORS.orange,
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: COLORS.brick,
   },
-
-  /* =====================================================
-     TITLE
-  ===================================================== */
 
   eventTitle: {
-    fontSize: 20,
+    fontSize: 23,
+    lineHeight: 30,
     fontWeight: "800",
-    color: COLORS.text,
-    lineHeight: 26,
-    marginBottom: 15,
+    color: COLORS.ink,
+    marginBottom: 14,
   },
 
-  /* =====================================================
-     INFO
-  ===================================================== */
+  /* ---------- info panel ---------- */
 
-  infoContainer: {
-    marginBottom: 2,
+  infoPanel: {
+    backgroundColor: COLORS.cream,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    borderRadius: 20,
+    padding: 12,
+    marginBottom: 14,
+  },
+
+  panelHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  panelIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+
+  panelTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.ink,
   },
 
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 11,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
   },
 
   infoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: COLORS.orangeLight,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 9,
+    marginRight: 12,
   },
 
   infoContent: {
@@ -697,139 +573,117 @@ const styles = StyleSheet.create({
   },
 
   infoLabel: {
-    fontSize: 7.5,
+    fontSize: 11.5,
     color: COLORS.textLight,
     fontWeight: "600",
     marginBottom: 2,
   },
 
   infoValue: {
-    fontSize: 9.5,
-    color: COLORS.text,
-    fontWeight: "600",
-    lineHeight: 14,
-  },
-
-  /* =====================================================
-     DESCRIPTION
-  ===================================================== */
-
-  descriptionSection: {
-    marginTop: 5,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.ink,
+    fontWeight: "700",
   },
 
   description: {
-    fontSize: 8.8,
-    lineHeight: 15,
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    lineHeight: 22,
+    color: COLORS.inkSoft,
+    marginBottom: 18,
   },
 
-  /* =====================================================
-     ACTIONS
-  ===================================================== */
+  /* ---------- actions ---------- */
 
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginTop: 17,
   },
 
-  /* =====================================================
-     CHECKLIST
-  ===================================================== */
-
   checklistButton: {
-    height: 43,
+    minHeight: 50,
     flex: 1,
-    borderRadius: 22,
-    backgroundColor: COLORS.orange,
+    borderRadius: 25,
+    backgroundColor: COLORS.brick,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: 8,
   },
 
   checklistButtonText: {
-    fontSize: 9,
+    fontSize: 15,
     fontWeight: "800",
     color: "#FFFFFF",
   },
 
-  /* =====================================================
-     SHARE ICON
-  ===================================================== */
+  /* ---------- loading ---------- */
 
-  shareIconButton: {
-    width: 43,
-    height: 43,
+  loadingContainer: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "transparent",
+    backgroundColor: COLORS.background,
   },
 
-  /* =====================================================
-     ERROR / LOADING
-  ===================================================== */
+  loadingText: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    marginTop: 8,
+  },
+
+  /* ---------- error ---------- */
 
   errorContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 30,
     backgroundColor: COLORS.background,
+    paddingHorizontal: 24,
   },
 
   errorIcon: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: COLORS.orangeLight,
+    backgroundColor: COLORS.accentSoft,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
   },
 
   errorTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.text,
-  },
-
-  emptyTitle: {
-    fontSize: 12,
+    fontSize: 18,
+    lineHeight: 25,
     fontWeight: "700",
-    color: COLORS.text,
-    marginTop: 10,
+    color: COLORS.ink,
+    marginTop: 12,
+    textAlign: "center",
   },
 
   errorText: {
-    fontSize: 9,
+    fontSize: 13,
+    lineHeight: 19,
     color: COLORS.textLight,
     marginTop: 6,
     textAlign: "center",
   },
 
-  errorBackButton: {
-    marginTop: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: COLORS.orange,
+  backButton: {
+    marginTop: 15,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 22,
+    backgroundColor: COLORS.brick,
   },
 
-  errorBackText: {
-    fontSize: 9,
-    fontWeight: "700",
+  backButtonText: {
+    fontSize: 13,
     color: "#FFFFFF",
+    fontWeight: "700",
   },
 
-  /* =====================================================
-     BOTTOM
-  ===================================================== */
+  /* ---------- bottom ---------- */
 
   bottomSpace: {
     height: 20,

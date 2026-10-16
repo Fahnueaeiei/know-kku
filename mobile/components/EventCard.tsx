@@ -2,6 +2,7 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../constants/appTheme';
 
 /**
  * EventCard
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
   },
   joinButton: {
     flex: 1,
-    backgroundColor: '#E86A33',
+    backgroundColor: COLORS.brick,
     borderRadius: 24,
     paddingVertical: 12,
     alignItems: 'center',

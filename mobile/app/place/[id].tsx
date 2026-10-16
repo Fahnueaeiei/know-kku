@@ -11,35 +11,21 @@ import {
   Linking,
   ActivityIndicator,
   Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { getPlace, getPlaces } from "../../api/api";
-
-/* =========================================================
-   COLORS
-========================================================= */
-
-const COLORS = {
-  orange: "#FA7C35",
-  orangeLight: "#FFF0E8",
-
-  background: "#FAF7F5",
-  white: "#FFFFFF",
-
-  text: "#2A2928",
-  textSecondary: "#686360",
-  textLight: "#8E8985",
-
-  border: "#EFE8E4",
-
-  red: "#E63946",
-  favorite: "#E63946",
-
-  green: "#55A76A",
-  blue: "#4BA6D8",
-};
+import { getPlace } from "../../api/api";
+import {
+  COLORS,
+  CARD_COLORS,
+  getCategoryMeta,
+} from "../../constants/appTheme";
 
 /* =========================================================
    TYPES
@@ -65,6 +51,14 @@ type WeeklyHour = {
   openingTime: string | null;
   closingTime: string | null;
   isClosed: boolean;
+};
+
+// รีวิวจากนักศึกษา (แสดงเป็นกระดาษโน้ต เฉพาะสถานที่ประเภท Restaurant)
+type PlaceReview = {
+  reviewId: string;
+  author: string;
+  rating: number; // 1 - 5
+  text: string;
 };
 
 type PlaceDetail = {
@@ -158,6 +152,87 @@ async function getNearbyPlaces(
 
 
 /* =========================================================
+   COMMUNITY FEEDBACK — SETTINGS / MOCK DATA
+   แสดงเฉพาะสถานที่ที่ category เป็น Restaurant
+   สถานที่ประเภทอื่น (เช่น Building) ยังแสดง Places Nearby ตามเดิม
+========================================================= */
+
+// true = ร้านอาหารแสดงทั้ง Community Feedback และ Places Nearby
+// false = ร้านอาหารแสดงเฉพาะ Community Feedback (แทนที่ Nearby)
+const SHOW_NEARBY_FOR_RESTAURANT = false;
+
+// จำนวนโน้ตที่แสดงก่อนกด See All
+const VISIBLE_REVIEWS = 3;
+
+const MAX_REVIEW_LENGTH = 200;
+
+const STAR_COLOR = "#A8402F";
+
+// สีกระดาษโน้ต + สีหมุดปัก วนตามลำดับ
+const NOTE_STYLES = [
+  { bg: "#FBD5E3", pin: "#B3473B" }, // ชมพู
+  { bg: "#FCD9C7", pin: "#0F5C55" }, // พีช
+  { bg: "#B9F0E4", pin: "#1A1A1A" }, // มิ้นต์
+  { bg: "#E6DEFA", pin: "#6B4FBF" }, // ม่วง
+  { bg: "#D3E8FB", pin: "#1E5C8C" }, // ฟ้า
+];
+
+const isRestaurantCategory = (category?: string | null) =>
+  String(category ?? "").trim().toLowerCase() === "restaurant";
+
+const MOCK_REVIEWS: PlaceReview[] = [
+  {
+    reviewId: "mock-review-1",
+    author: "@NongKKU",
+    rating: 5,
+    text: "Pad Thai at the corner shop is 10/10! Only a long queue though.",
+  },
+  {
+    reviewId: "mock-review-2",
+    author: "Freshy Boy",
+    rating: 5,
+    text: "Very cheap! Good variety for lunch. Can get crowded around 12PM.",
+  },
+  {
+    reviewId: "mock-review-3",
+    author: "Jane Doe",
+    rating: 5,
+    text: "Love the fresh fruit smoothie stall here. Lifesaver in summer.",
+  },
+  {
+    reviewId: "mock-review-4",
+    author: "Somchai R.",
+    rating: 4,
+    text: "Big portions for the price. Seating fills up fast in the evening.",
+  },
+];
+
+/*
+  แยกฟังก์ชันรีวิวไว้ 2 ตัวนี้โดยเฉพาะ (เหมือนแนวทางของ Nearby)
+  เมื่อ Backend พร้อม ให้เปลี่ยนเป็นการเรียก API
+    - getPlaceReviews    → GET  /places/:id/reviews
+    - submitPlaceReview  → POST /places/:id/reviews
+*/
+async function getPlaceReviews(
+  placeId: string
+): Promise<PlaceReview[]> {
+  return MOCK_REVIEWS;
+}
+
+async function submitPlaceReview(
+  placeId: string,
+  input: { rating: number; text: string }
+): Promise<PlaceReview> {
+  return {
+    reviewId: `local-${Date.now()}`,
+    author: "You", // TODO: ใช้ username ของผู้ใช้ที่ล็อกอิน
+    rating: input.rating,
+    text: input.text.trim(),
+  };
+}
+
+
+/* =========================================================
    OPENING HOURS HELPERS
 ========================================================= */
 
@@ -171,6 +246,11 @@ type HourGroup = {
 };
 
 const formatTime = (t: string | null) => (t ? t.slice(0, 5) : "");
+
+const toMinutes = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+};
 
 // วันนี้เป็นวันที่เท่าไหร่ (1 = Mon ... 7 = Sun)
 const getTodayDow = () => {
@@ -218,6 +298,61 @@ const formatDayRange = (g: HourGroup) => {
   return `${DAY_NAMES[g.startDay - 1]} - ${DAY_NAMES[g.endDay - 1]}`;
 };
 
+type OpenStatus = { isOpen: boolean; label: string };
+
+// สถานะ "เปิดอยู่ตอนนี้ไหม" คำนวณจากเวลาเปิด-ปิดของวันนี้
+// ไม่มีข้อมูลพอ → คืน null (ไม่แสดงป้าย)
+const getOpenStatus = (
+  rows: WeeklyHour[],
+  legacy: { open: string | null; close: string | null }
+): OpenStatus | null => {
+  let openTime: string | null = null;
+  let closeTime: string | null = null;
+
+  if (rows.length > 0) {
+    const today = rows.find((r) => r.dayOfWeek === getTodayDow());
+
+    if (!today) return null;
+
+    if (today.isClosed || !today.openingTime || !today.closingTime) {
+      return { isOpen: false, label: "Closed today" };
+    }
+
+    openTime = today.openingTime;
+    closeTime = today.closingTime;
+  } else if (legacy.open && legacy.close) {
+    openTime = legacy.open;
+    closeTime = legacy.close;
+  } else {
+    return null;
+  }
+
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const o = toMinutes(openTime);
+  const c = toMinutes(closeTime);
+
+  // ร้านที่ปิดหลังเที่ยงคืน (ปิด <= เปิด) ก็คำนวณได้
+  const isOpen =
+    c > o ? nowMin >= o && nowMin < c : nowMin >= o || nowMin < c;
+
+  if (isOpen) {
+    return {
+      isOpen: true,
+      label: `Open now · until ${formatTime(closeTime)}`,
+    };
+  }
+
+  if (c > o && nowMin < o) {
+    return {
+      isOpen: false,
+      label: `Closed · opens ${formatTime(openTime)}`,
+    };
+  }
+
+  return { isOpen: false, label: "Closed now" };
+};
+
 /* =========================================================
    PLACE DETAIL SCREEN
 ========================================================= */
@@ -233,6 +368,16 @@ export default function PlaceDetailScreen() {
   const [loading, setLoading] =
     useState(true);
 
+  // Community Feedback (เฉพาะ Restaurant)
+  const [reviews, setReviews] =
+    useState<PlaceReview[]>([]);
+
+  const [showAllReviews, setShowAllReviews] =
+    useState(false);
+
+  const [reviewModalVisible, setReviewModalVisible] =
+    useState(false);
+
   /* =======================================================
      LOAD PLACE DETAIL
   ======================================================= */
@@ -243,7 +388,21 @@ export default function PlaceDetailScreen() {
         setLoading(true);
         const data = await getPlace(id);
 
-        const nearbyPlaces = await getNearbyPlaces(data);
+        const restaurant = isRestaurantCategory(data.category);
+
+        // Building ฯลฯ → Nearby ตามเดิม / Restaurant → ข้ามถ้าไม่ได้เปิดใช้
+        const nearbyPlaces =
+          !restaurant || SHOW_NEARBY_FOR_RESTAURANT
+            ? await getNearbyPlaces(data)
+            : [];
+
+        // รีวิวโหลดไม่สำเร็จ ไม่ควรทำให้ทั้งหน้าพัง
+        const placeReviews = restaurant
+          ? await getPlaceReviews(String(data.placeId)).catch(() => [])
+          : [];
+
+        setReviews(placeReviews);
+        setShowAllReviews(false);
 
         setPlace({
           placeId: String(data.placeId),
@@ -330,6 +489,24 @@ export default function PlaceDetailScreen() {
   };
 
   /* =======================================================
+     SUBMIT REVIEW
+     สำเร็จ → เพิ่มโน้ตใหม่ไว้ใบแรก แล้วปิด modal
+     ล้มเหลว → throw ต่อให้ modal แจ้งผู้ใช้
+  ======================================================= */
+
+  const handleSubmitReview = async (input: {
+    rating: number;
+    text: string;
+  }) => {
+    if (!place) return;
+
+    const created = await submitPlaceReview(place.placeId, input);
+
+    setReviews((prev) => [created, ...prev]);
+    setReviewModalVisible(false);
+  };
+
+  /* =======================================================
      LOADING
   ======================================================= */
 
@@ -355,11 +532,13 @@ export default function PlaceDetailScreen() {
   if (!place) {
     return (
       <View style={styles.errorContainer}>
-        <Ionicons
-          name="location-outline"
-          size={35}
-          color={COLORS.textLight}
-        />
+        <View style={styles.errorIcon}>
+          <Ionicons
+            name="location-outline"
+            size={30}
+            color={COLORS.brick}
+          />
+        </View>
 
         <Text style={styles.errorTitle}>
           Place not found
@@ -378,7 +557,7 @@ export default function PlaceDetailScreen() {
   }
 
   /* =======================================================
-     OPENING HOURS (คำนวณก่อน render)
+     คำนวณก่อน render
   ======================================================= */
 
   const hourGroups = groupWeeklyHours(place.weeklyHours);
@@ -386,6 +565,17 @@ export default function PlaceDetailScreen() {
 
   const hasLegacyHours =
     !!place.openingHours.open && !!place.openingHours.close;
+
+  const openStatus = getOpenStatus(
+    place.weeklyHours,
+    place.openingHours
+  );
+
+  const categoryMeta = getCategoryMeta(place.category);
+
+  const isRestaurant = isRestaurantCategory(place.category);
+
+  const showNearby = !isRestaurant || SHOW_NEARBY_FOR_RESTAURANT;
 
   /* =======================================================
      MAIN
@@ -402,63 +592,95 @@ export default function PlaceDetailScreen() {
       >
 
         {/* =================================================
-            BACK BUTTON
+            HERO IMAGE + BACK BUTTON
         ================================================= */}
 
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={styles.topBackButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={18}
-            color={COLORS.text}
+        <View style={styles.hero}>
+          <Image
+            source={place.image}
+            style={styles.heroImage}
           />
 
-          <Text style={styles.backText}>
-            Back
-          </Text>
-        </TouchableOpacity>
+          <View style={styles.heroShade} />
+          <View style={styles.heroShadeBottom} />
 
-        {/* =================================================
-            MAIN PLACE CARD
-        ================================================= */}
-
-        <View style={styles.mainCard}>
-
-          {/* IMAGE */}
-
-          <View style={styles.imageContainer}>
-
-            <Image
-              source={place.image}
-              style={styles.mainImage}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.heroBack}
+            onPress={() => router.back()}
+            accessibilityLabel="Go back"
+          >
+            <Ionicons
+              name="arrow-back"
+              size={20}
+              color={COLORS.ink}
             />
+          </TouchableOpacity>
+        </View>
 
-            {/* CATEGORY */}
+        <View style={styles.body}>
 
-            <View style={styles.categoryBadge}>
+          {/* ===============================================
+              MAIN PLACE CARD (ซ้อนทับขอบล่างของรูป)
+          =============================================== */}
 
-              <Ionicons
-                name="business-outline"
-                size={12}
-                color={COLORS.orange}
-              />
+          <View style={styles.mainCard}>
 
-              <Text
-                style={styles.categoryText}
-              >
-                {place.category}
-              </Text>
+            {/* CATEGORY + OPEN STATUS */}
 
+            <View style={styles.chipRow}>
+              <View style={styles.categoryChip}>
+                <Ionicons
+                  name={categoryMeta.icon}
+                  size={13}
+                  color={categoryMeta.color}
+                />
+
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    { color: categoryMeta.color },
+                  ]}
+                >
+                  {place.category}
+                </Text>
+              </View>
+
+              {!!openStatus && (
+                <View
+                  style={[
+                    styles.statusChip,
+                    openStatus.isOpen
+                      ? styles.statusOpen
+                      : styles.statusClosed,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statusDot,
+                      {
+                        backgroundColor: openStatus.isOpen
+                          ? COLORS.green
+                          : COLORS.overdue,
+                      },
+                    ]}
+                  />
+
+                  <Text
+                    style={[
+                      styles.statusText,
+                      {
+                        color: openStatus.isOpen
+                          ? "#2E7D4A"
+                          : COLORS.overdue,
+                      },
+                    ]}
+                  >
+                    {openStatus.label}
+                  </Text>
+                </View>
+              )}
             </View>
-
-          </View>
-
-          {/* CONTENT */}
-
-          <View style={styles.mainContent}>
 
             <Text style={styles.placeName}>
               {place.name}
@@ -467,30 +689,35 @@ export default function PlaceDetailScreen() {
             {/* OPENING HOURS (รายวัน) */}
 
             {hourGroups.length > 0 ? (
-              <View style={styles.hoursRowWrap}>
-                <View style={styles.infoIcon}>
-                  <Ionicons
-                    name="time-outline"
-                    size={15}
-                    color={COLORS.orange}
-                  />
-                </View>
+              <View style={styles.hoursPanel}>
+                <View style={styles.panelHead}>
+                  <View style={styles.panelIcon}>
+                    <Ionicons
+                      name="time-outline"
+                      size={18}
+                      color={COLORS.brick}
+                    />
+                  </View>
 
-                <View style={styles.hoursContent}>
-                  <Text style={styles.infoLabel}>
+                  <Text style={styles.panelTitle}>
                     Opening Hours
                   </Text>
+                </View>
 
-                  {hourGroups.map((g) => {
-                    const isToday =
-                      todayDow >= g.startDay &&
-                      todayDow <= g.endDay;
+                {hourGroups.map((g) => {
+                  const isToday =
+                    todayDow >= g.startDay &&
+                    todayDow <= g.endDay;
 
-                    return (
-                      <View
-                        key={`${g.startDay}-${g.endDay}`}
-                        style={styles.hoursRow}
-                      >
+                  return (
+                    <View
+                      key={`${g.startDay}-${g.endDay}`}
+                      style={[
+                        styles.hoursRow,
+                        isToday && styles.hoursRowToday,
+                      ]}
+                    >
+                      <View style={styles.hoursDayWrap}>
                         <Text
                           style={[
                             styles.hoursDay,
@@ -500,37 +727,51 @@ export default function PlaceDetailScreen() {
                           {formatDayRange(g)}
                         </Text>
 
-                        <Text
-                          style={[
-                            styles.hoursTime,
-                            g.closed && styles.hoursClosed,
-                            isToday && styles.hoursToday,
-                          ]}
-                        >
-                          {g.label}
-                        </Text>
+                        {isToday && (
+                          <View style={styles.todayTag}>
+                            <Text style={styles.todayTagText}>
+                              TODAY
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                    );
-                  })}
-                </View>
+
+                      <Text
+                        style={[
+                          styles.hoursTime,
+                          isToday && styles.hoursToday,
+                          g.closed && styles.hoursClosed,
+                        ]}
+                      >
+                        {g.label}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             ) : hasLegacyHours ? (
               // fallback: ยังไม่มีข้อมูลรายวัน ใช้ค่าเดิม
-              <View style={styles.infoRow}>
-                <View style={styles.infoIcon}>
-                  <Ionicons
-                    name="time-outline"
-                    size={15}
-                    color={COLORS.orange}
-                  />
-                </View>
+              <View style={styles.hoursPanel}>
+                <View style={styles.panelHead}>
+                  <View style={styles.panelIcon}>
+                    <Ionicons
+                      name="time-outline"
+                      size={18}
+                      color={COLORS.brick}
+                    />
+                  </View>
 
-                <View>
-                  <Text style={styles.infoLabel}>
+                  <Text style={styles.panelTitle}>
                     Opening Hours
                   </Text>
+                </View>
 
-                  <Text style={styles.infoValue}>
+                <View style={styles.hoursRow}>
+                  <Text style={styles.hoursDay}>
+                    Every day
+                  </Text>
+
+                  <Text style={styles.hoursTime}>
                     {place.openingHours.open.slice(0, 5)}
                     {" - "}
                     {place.openingHours.close.slice(0, 5)}
@@ -557,7 +798,7 @@ export default function PlaceDetailScreen() {
 
               <Ionicons
                 name="navigate-outline"
-                size={17}
+                size={18}
                 color="#FFFFFF"
               />
 
@@ -569,7 +810,7 @@ export default function PlaceDetailScreen() {
 
               <Ionicons
                 name="arrow-forward"
-                size={14}
+                size={15}
                 color="#FFFFFF"
               />
 
@@ -577,109 +818,192 @@ export default function PlaceDetailScreen() {
 
           </View>
 
-        </View>
+          {/* ===============================================
+              SHUTTLE BUS
+          =============================================== */}
 
-        {/* =================================================
-            SHUTTLE BUS
-        ================================================= */}
+          <SectionHeader
+            icon="bus-outline"
+            title="Shuttle Bus"
+            subtitle="Lines that stop near here"
+          />
 
-        <View style={styles.shuttleCard}>
-          {place.shuttleRoutes.length > 0 ? (
-            place.shuttleRoutes.map((route, index) => (
-              <View
-                key={route.id}
-                style={[
-                  styles.routeItem,
-                  index !== place.shuttleRoutes.length - 1 &&
-                  styles.routeDivider,
-                ]}
-              >
+          <View style={styles.shuttleCard}>
+            {place.shuttleRoutes.length > 0 ? (
+              place.shuttleRoutes.map((route, index) => (
                 <View
+                  key={route.id}
                   style={[
-                    styles.routeDot,
-                    { backgroundColor: route.color },
+                    styles.routeItem,
+                    index !== place.shuttleRoutes.length - 1 &&
+                    styles.routeDivider,
                   ]}
-                />
+                >
+                  <View
+                    style={[
+                      styles.routeBadge,
+                      { backgroundColor: route.color + "22" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="bus"
+                      size={17}
+                      color={route.color}
+                    />
+                  </View>
 
-                <View style={styles.routeInfo}>
-                  <Text style={styles.routeName}>
-                    {route.name}
-                  </Text>
+                  <View style={styles.routeInfo}>
+                    <Text style={styles.routeName}>
+                      {route.name}
+                    </Text>
 
-                  <Text style={styles.routeSubtitle}>
-                    Stops near {place.name}
-                  </Text>
+                    <Text style={styles.routeSubtitle}>
+                      Stops near {place.name}
+                    </Text>
+                  </View>
+
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={COLORS.textLight}
+                  />
                 </View>
-
+              ))
+            ) : (
+              <View style={styles.noBusContainer}>
                 <Ionicons
-                  name="chevron-forward"
-                  size={16}
+                  name="bus-outline"
+                  size={22}
                   color={COLORS.textLight}
                 />
+
+                <Text style={styles.noBusText}>
+                  No shuttle bus passes this place
+                </Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.noBusContainer}>
-              <Ionicons
-                name="bus-outline"
-                size={22}
-                color={COLORS.textLight}
-              />
+            )}
+          </View>
 
-              <Text style={styles.noBusText}>
-                No shuttle bus passes this place
-              </Text>
-            </View>
+          {/* ===============================================
+              COMMUNITY FEEDBACK
+              แสดงเฉพาะสถานที่ประเภท Restaurant
+          =============================================== */}
+
+          {isRestaurant && (
+            <CommunityFeedback
+              reviews={reviews}
+              expanded={showAllReviews}
+              onToggleExpanded={() =>
+                setShowAllReviews((v) => !v)
+              }
+              onAddReview={() =>
+                setReviewModalVisible(true)
+              }
+            />
           )}
-        </View>
 
+          {/* ===============================================
+              PLACES NEARBY
+              สถานที่ประเภทอื่น (เช่น Building) แสดงตามเดิม
+          =============================================== */}
 
-
-        {/* =================================================
-            PLACES NEARBY
-        ================================================= */}
-
-        <View style={styles.nearbyHeader}>
-
-          <View>
-            <Text style={styles.sectionTitle}>
-              Places Nearby
-            </Text>
-
-            <Text
-              style={styles.sectionSubtitle}
-            >
-              Explore places around here
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={openGoogleMaps}
-          >
-            <Text style={styles.mapText}>
-              Map
-            </Text>
-          </TouchableOpacity>
-
-        </View>
-
-        {/* NEARBY LIST */}
-
-        <View style={styles.nearbyList}>
-            {place.nearbyPlaces.map((nearby) => (
-              <NearbyPlaceCard
-                key={nearby.placeId}
-                place={nearby}
-                onPress={() => openNearbyPlace(nearby)}
+          {showNearby && (
+            <>
+              <SectionHeader
+                icon="map-outline"
+                title="Places Nearby"
+                subtitle="Explore places around here"
+                actionLabel="Map"
+                onAction={openGoogleMaps}
               />
-            ))}
-          </View>
+
+              {/* NEARBY LIST */}
+
+              <View style={styles.nearbyList}>
+                {place.nearbyPlaces.map((nearby, index) => (
+                  <NearbyPlaceCard
+                    key={nearby.placeId}
+                    place={nearby}
+                    index={index}
+                    onPress={() => openNearbyPlace(nearby)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+
+        </View>
 
         <View style={styles.bottomSpace} />
 
       </ScrollView>
 
+      {/* =================================================
+          ADD REVIEW MODAL
+      ================================================= */}
+
+      {isRestaurant && (
+        <ReviewModal
+          visible={reviewModalVisible}
+          placeName={place.name}
+          onClose={() => setReviewModalVisible(false)}
+          onSubmit={handleSubmitReview}
+        />
+      )}
+
+    </View>
+  );
+}
+
+/* =======================================================
+   SECTION HEADER — หัวข้อหน้าตาเดียวกันทุกส่วน
+======================================================= */
+
+function SectionHeader({
+  icon,
+  title,
+  subtitle,
+  actionLabel,
+  onAction,
+}: {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionIcon}>
+        <Ionicons
+          name={icon}
+          size={19}
+          color={COLORS.brick}
+        />
+      </View>
+
+      <View style={styles.sectionTextWrap}>
+        <Text style={styles.sectionTitle}>
+          {title}
+        </Text>
+
+        {!!subtitle && (
+          <Text style={styles.sectionSubtitle}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
+
+      {!!actionLabel && (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={onAction}
+        >
+          <Text style={styles.sectionAction}>
+            {actionLabel}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -690,30 +1014,25 @@ export default function PlaceDetailScreen() {
 
 function NearbyPlaceCard({
   place,
+  index,
   onPress,
 }: {
   place: NearbyPlace;
+  index: number;
   onPress: () => void;
 }) {
-  /* CATEGORY ICON */
-  const categoryIcon =
-    place.category === "Restaurant"
-      ? "restaurant-outline"
-      : place.category === "Cafe"
-        ? "cafe-outline"
-        : "business-outline";
-
-  const categoryColor =
-    place.category === "Restaurant"
-      ? COLORS.red
-      : place.category === "Cafe"
-        ? COLORS.orange
-        : COLORS.blue;
+  const meta = getCategoryMeta(place.category);
 
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      style={styles.nearbyCard}
+      style={[
+        styles.nearbyCard,
+        {
+          backgroundColor:
+            CARD_COLORS[index % CARD_COLORS.length],
+        },
+      ]}
       onPress={onPress}
     >
       {/* IMAGE */}
@@ -735,22 +1054,22 @@ function NearbyPlaceCard({
           <Ionicons
             name="chevron-forward"
             size={15}
-            color={COLORS.textLight}
+            color={COLORS.inkSoft}
           />
         </View>
 
         {/* CATEGORY */}
         <View style={styles.nearbyCategory}>
           <Ionicons
-            name={categoryIcon}
+            name={meta.icon}
             size={12}
-            color={categoryColor}
+            color={meta.color}
           />
 
           <Text
             style={[
               styles.nearbyCategoryText,
-              { color: categoryColor },
+              { color: meta.color },
             ]}
             numberOfLines={1}
           >
@@ -759,6 +1078,315 @@ function NearbyPlaceCard({
         </View>
       </View>
     </TouchableOpacity>
+  );
+}
+
+/* =======================================================
+   COMMUNITY FEEDBACK
+   สรุปคะแนนเฉลี่ย + กระดาษโน้ตปักบอร์ด 2 คอลัมน์ + การ์ด "Add your review"
+   (แบ่งคอลัมน์แบบสลับซ้าย-ขวา ความสูงโน้ตแต่ละใบจึงไม่ต้องเท่ากัน)
+======================================================= */
+
+function CommunityFeedback({
+  reviews,
+  expanded,
+  onToggleExpanded,
+  onAddReview,
+}: {
+  reviews: PlaceReview[];
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onAddReview: () => void;
+}) {
+  const visible = expanded
+    ? reviews
+    : reviews.slice(0, VISIBLE_REVIEWS);
+
+  const average =
+    reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) /
+      reviews.length
+      : 0;
+
+  // โน้ตทั้งหมด + การ์ดเพิ่มรีวิวเป็นใบสุดท้ายเสมอ
+  const tiles = [
+    ...visible.map((review, index) => ({
+      kind: "review",
+      review,
+      index,
+    })),
+    { kind: "add" },
+  ];
+
+  const leftColumn = tiles.filter((_, i) => i % 2 === 0);
+  const rightColumn = tiles.filter((_, i) => i % 2 === 1);
+
+  const renderTile = (tile) =>
+    tile.kind === "add" ? (
+      <AddReviewCard key="add-review" onPress={onAddReview} />
+    ) : (
+      <ReviewNote
+        key={tile.review.reviewId}
+        review={tile.review}
+        index={tile.index}
+      />
+    );
+
+  return (
+    <View style={styles.feedbackSection}>
+      <SectionHeader
+        icon="chatbubbles-outline"
+        title="Community Feedback"
+        subtitle="Notes from KKU students"
+        actionLabel={
+          reviews.length > VISIBLE_REVIEWS
+            ? expanded
+              ? "Show less"
+              : "See All"
+            : undefined
+        }
+        onAction={onToggleExpanded}
+      />
+
+      {reviews.length > 0 ? (
+        <View style={styles.ratingPanel}>
+          <View style={styles.ratingLeft}>
+            <Text style={styles.ratingBig}>
+              {average.toFixed(1)}
+            </Text>
+
+            <StarRow rating={Math.round(average)} size={16} />
+          </View>
+
+          <Text style={styles.ratingMeta}>
+            {`Based on ${reviews.length} ${reviews.length === 1 ? "review" : "reviews"
+              }`}
+          </Text>
+        </View>
+      ) : (
+        <Text style={styles.feedbackEmpty}>
+          No reviews yet. Be the first to leave a note!
+        </Text>
+      )}
+
+      <View style={styles.feedbackColumns}>
+        <View style={styles.feedbackColumn}>
+          {leftColumn.map(renderTile)}
+        </View>
+
+        <View style={styles.feedbackColumn}>
+          {rightColumn.map(renderTile)}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function StarRow({
+  rating,
+  size = 15,
+}: {
+  rating: number;
+  size?: number;
+}) {
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Ionicons
+          key={n}
+          name={n <= rating ? "star" : "star-outline"}
+          size={size}
+          color={STAR_COLOR}
+        />
+      ))}
+    </View>
+  );
+}
+
+function ReviewNote({
+  review,
+  index,
+}: {
+  review: PlaceReview;
+  index: number;
+}) {
+  const note = NOTE_STYLES[index % NOTE_STYLES.length];
+
+  return (
+    <View style={[styles.noteCard, { backgroundColor: note.bg }]}>
+      {/* หมุดปักกระดาษ */}
+      <View style={[styles.notePin, { backgroundColor: note.pin }]} />
+
+      <StarRow rating={review.rating} />
+
+      <Text style={styles.noteText}>
+        {`"${review.text}"`}
+      </Text>
+
+      <Text style={styles.noteAuthor} numberOfLines={1}>
+        {`- ${review.author}`}
+      </Text>
+    </View>
+  );
+}
+
+function AddReviewCard({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      style={styles.addReviewCard}
+      onPress={onPress}
+    >
+      <Ionicons
+        name="paper-plane-outline"
+        size={15}
+        color={COLORS.inkSoft}
+        style={styles.addReviewSend}
+      />
+
+      <View style={styles.addReviewCircle}>
+        <Ionicons
+          name="add"
+          size={22}
+          color={COLORS.brick}
+        />
+      </View>
+
+      <Text style={styles.addReviewText}>
+        Add your review
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+/* =======================================================
+   REVIEW MODAL — เลือกดาว + เขียนโน้ตสั้น ๆ
+======================================================= */
+
+function ReviewModal({
+  visible,
+  placeName,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  placeName: string;
+  onClose: () => void;
+  onSubmit: (input: { rating: number; text: string }) => Promise<void>;
+}) {
+  const [rating, setRating] = useState(0);
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // ปิดแล้วเคลียร์ฟอร์ม กันข้อมูลค้างไปตอนเปิดครั้งถัดไป
+  useEffect(() => {
+    if (!visible) {
+      setRating(0);
+      setText("");
+    }
+  }, [visible]);
+
+  const submit = async () => {
+    if (rating < 1 || !text.trim()) {
+      Alert.alert(
+        "Missing info",
+        "Please choose a star rating and write a short note."
+      );
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await onSubmit({ rating, text });
+    } catch {
+      Alert.alert("Couldn't post", "Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        style={styles.reviewOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        {/* แตะพื้นหลังเพื่อปิด */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+        />
+
+        <View style={styles.reviewModalCard}>
+          <TouchableOpacity
+            style={styles.reviewClose}
+            onPress={onClose}
+          >
+            <Ionicons name="close" size={20} color={COLORS.inkSoft} />
+          </TouchableOpacity>
+
+          <Text style={styles.reviewModalTitle}>
+            Add your review
+          </Text>
+
+          <Text style={styles.reviewModalSubtitle} numberOfLines={1}>
+            {placeName}
+          </Text>
+
+          {/* STAR PICKER */}
+          <View style={styles.starPicker}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <TouchableOpacity
+                key={n}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                onPress={() => setRating(n)}
+              >
+                <Ionicons
+                  name={n <= rating ? "star" : "star-outline"}
+                  size={34}
+                  color={STAR_COLOR}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Write a short note about this place..."
+            placeholderTextColor="#A9A29E"
+            style={styles.reviewInput}
+            multiline
+            maxLength={MAX_REVIEW_LENGTH}
+          />
+
+          <Text style={styles.reviewCounter}>
+            {text.length}/{MAX_REVIEW_LENGTH}
+          </Text>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={[styles.reviewSubmit, submitting && { opacity: 0.6 }]}
+            onPress={submit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.reviewSubmitText}>
+                Post note
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -777,29 +1405,59 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
     paddingBottom: 24,
   },
 
-  /* =======================================================
-     BACK
-  ======================================================= */
-
-  topBackButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    marginBottom: 8,
+  body: {
+    paddingHorizontal: 16,
   },
 
-  backText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginLeft: 7,
+  /* =======================================================
+     HERO
+  ======================================================= */
+
+  hero: {
+    width: "100%",
+    height: 250,
+    backgroundColor: COLORS.skeleton,
+  },
+
+  heroImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+
+  heroShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(26,26,26,0.14)",
+  },
+
+  heroShadeBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "45%",
+    backgroundColor: "rgba(40,14,4,0.22)",
+  },
+
+  heroBack: {
+    position: "absolute",
+    top: 12,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
 
   /* =======================================================
@@ -807,154 +1465,178 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   mainCard: {
+    marginTop: -38,
     backgroundColor: COLORS.white,
-    borderRadius: 25,
-    overflow: "hidden",
-    marginBottom: 20,
-    shadowColor: "#AFA7A2",
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 26,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.brick,
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 6,
     },
-    shadowOpacity: 0.09,
-    shadowRadius: 9,
-    elevation: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
 
-  /* =======================================================
-     MAIN IMAGE
-  ======================================================= */
-
-  imageContainer: {
-    width: "100%",
-    height: 210,
-    position: "relative",
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
   },
 
-  mainImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-
-  categoryBadge: {
-    position: "absolute",
-    left: 12,
-    bottom: 12,
-    minHeight: 32,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.96)",
+  categoryChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    backgroundColor: COLORS.cream,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
   },
 
-  categoryText: {
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  statusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+
+  statusOpen: {
+    backgroundColor: "#E4F4EA",
+  },
+
+  statusClosed: {
+    backgroundColor: "#FDECEC",
+  },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+
+  statusText: {
     fontSize: 12,
     fontWeight: "700",
-    color: COLORS.orange,
-  },
-
-  /* =======================================================
-     MAIN CONTENT
-  ======================================================= */
-
-  mainContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 18,
   },
 
   placeName: {
-    fontSize: 22,
-    lineHeight: 29,
+    fontSize: 23,
+    lineHeight: 30,
     fontWeight: "800",
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 13,
-  },
-
-  infoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: COLORS.orangeLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-
-  infoLabel: {
-    fontSize: 12,
-    color: COLORS.textLight,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-
-  infoValue: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: COLORS.text,
-    fontWeight: "600",
+    color: COLORS.ink,
+    marginBottom: 14,
   },
 
   /* =======================================================
      OPENING HOURS (รายวัน)
   ======================================================= */
 
-  hoursRowWrap: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-
-    marginBottom: 11,
+  hoursPanel: {
+    backgroundColor: COLORS.cream,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    borderRadius: 20,
+    padding: 12,
+    marginBottom: 14,
   },
 
-  hoursContent: {
-    flex: 1,
+  panelHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+
+  panelIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+
+  panelTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.ink,
   },
 
   hoursRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-
-    paddingVertical: 2,
-  },
-
-  hoursDay: {
-    fontSize: 9.5,
-
-    color: COLORS.textSecondary,
-
-    fontWeight: "500",
-  },
-
-  hoursTime: {
-    fontSize: 9.5,
-
-    color: COLORS.text,
-
-    fontWeight: "600",
-  },
-
-  hoursClosed: {
-    color: COLORS.red,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
   },
 
   // ไฮไลต์แถวของวันนี้
+  hoursRowToday: {
+    backgroundColor: COLORS.white,
+  },
+
+  hoursDayWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  hoursDay: {
+    fontSize: 13,
+    color: COLORS.inkSoft,
+    fontWeight: "600",
+  },
+
+  hoursTime: {
+    fontSize: 13,
+    color: COLORS.ink,
+    fontWeight: "700",
+  },
+
+  hoursClosed: {
+    color: COLORS.overdue,
+  },
+
   hoursToday: {
+    color: COLORS.brick,
     fontWeight: "800",
+  },
+
+  todayTag: {
+    backgroundColor: COLORS.brick,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+
+  todayTagText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    color: "#FFFFFF",
   },
 
   description: {
     fontSize: 14,
     lineHeight: 22,
-    color: COLORS.textSecondary,
+    color: COLORS.inkSoft,
     marginBottom: 18,
   },
 
@@ -963,9 +1645,9 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   directionButton: {
-    minHeight: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.orange,
+    minHeight: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.brick,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -973,71 +1655,56 @@ const styles = StyleSheet.create({
   },
 
   directionText: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#FFFFFF",
-    fontWeight: "700",
+    fontWeight: "800",
   },
 
   /* =======================================================
      SECTION HEADER
   ======================================================= */
 
-  favoriteIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFF1F2",
-  },
-
-  favoriteIconButtonActive: {
-    backgroundColor: "#FFE3E5",
-  },
-
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 12,
   },
 
-  favoriteChip: {
-    borderWidth: 1,
-    borderColor: "#F2C7C9",
-    backgroundColor: "#FFF5F5",
+  sectionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
   },
 
-  favoriteChipActive: {
-    backgroundColor: COLORS.favorite,
-    borderColor: COLORS.favorite,
-  },
-
-  favoriteText: {
-    color: COLORS.favorite,
+  sectionTextWrap: {
+    flex: 1,
+    paddingRight: 8,
   },
 
   sectionTitle: {
     fontSize: 18,
-    lineHeight: 25,
+    lineHeight: 24,
     fontWeight: "800",
-    color: COLORS.text,
+    color: COLORS.ink,
   },
 
   sectionSubtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: COLORS.textLight,
-    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.inkSoft,
+    marginTop: 1,
   },
 
-  busIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: COLORS.orangeLight,
-    alignItems: "center",
-    justifyContent: "center",
+  sectionAction: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.orange,
+    paddingVertical: 8,
+    paddingLeft: 12,
   },
 
   /* =======================================================
@@ -1046,10 +1713,10 @@ const styles = StyleSheet.create({
 
   shuttleCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 18,
+    borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 4,
-    marginBottom: 26,
+    marginBottom: 28,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: "#AFA7A2",
@@ -1063,7 +1730,7 @@ const styles = StyleSheet.create({
   },
 
   routeItem: {
-    minHeight: 66,
+    minHeight: 68,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -1073,10 +1740,12 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
 
-  routeDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  routeBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
 
@@ -1088,14 +1757,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "700",
-    color: COLORS.text,
+    color: COLORS.ink,
   },
 
   routeSubtitle: {
     fontSize: 12,
     lineHeight: 18,
     color: COLORS.textLight,
-    marginTop: 3,
+    marginTop: 2,
   },
 
   noBusContainer: {
@@ -1117,21 +1786,6 @@ const styles = StyleSheet.create({
      NEARBY
   ======================================================= */
 
-  nearbyHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
-
-  mapText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.orange,
-    paddingVertical: 8,
-    paddingLeft: 12,
-  },
-
   nearbyList: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1140,24 +1794,22 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
 
-  /* =======================================================
-     NEARBY CARD
-  ======================================================= */
-
   nearbyCard: {
     width: "48.5%",
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
+    borderRadius: 22,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    shadowColor: "#AFA7A2",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 7,
+    elevation: 2,
   },
 
   nearbyImage: {
     width: "100%",
     height: 115,
     resizeMode: "cover",
-    backgroundColor: "#F3E9E1",
+    backgroundColor: COLORS.skeleton,
   },
 
   nearbyContent: {
@@ -1174,8 +1826,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 19,
-    fontWeight: "700",
-    color: COLORS.text,
+    fontWeight: "800",
+    color: COLORS.ink,
     marginRight: 4,
   },
 
@@ -1185,29 +1837,241 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginTop: 10,
     paddingHorizontal: 9,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 10,
-    backgroundColor: COLORS.orangeLight,
+    backgroundColor: "rgba(255,255,255,0.78)",
     gap: 5,
   },
 
   nearbyCategoryText: {
     fontSize: 11,
     lineHeight: 15,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 
-  distanceRow: {
+  /* =======================================================
+     COMMUNITY FEEDBACK
+  ======================================================= */
+
+  feedbackSection: {
+    marginBottom: 8,
+  },
+
+  ratingPanel: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 7,
-    gap: 4,
+    justifyContent: "space-between",
+    backgroundColor: COLORS.cream,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
   },
 
-  distanceText: {
+  ratingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  ratingBig: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: COLORS.ink,
+  },
+
+  ratingMeta: {
     fontSize: 12,
-    lineHeight: 17,
+    color: COLORS.inkSoft,
+  },
+
+  feedbackEmpty: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.inkSoft,
+    marginBottom: 12,
+  },
+
+  feedbackColumns: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+
+  feedbackColumn: {
+    flex: 1,
+    gap: 12,
+  },
+
+  /* กระดาษโน้ต */
+
+  noteCard: {
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingTop: 24,
+    paddingBottom: 12,
+    shadowColor: "#AFA7A2",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+
+  notePin: {
+    position: "absolute",
+    top: 8,
+    alignSelf: "center",
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+  },
+
+  starRow: {
+    flexDirection: "row",
+    gap: 2,
+    marginBottom: 8,
+  },
+
+  noteText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "500",
+    color: COLORS.ink,
+  },
+
+  noteAuthor: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: "500",
+    color: COLORS.inkSoft,
+    marginTop: 10,
+  },
+
+  /* การ์ดเพิ่มรีวิว */
+
+  addReviewCard: {
+    minHeight: 150,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#F2B8A6",
+    backgroundColor: COLORS.cream,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+
+  addReviewSend: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+  },
+
+  addReviewCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  addReviewText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.ink,
+  },
+
+  /* modal เพิ่มรีวิว */
+
+  reviewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(26,26,26,0.4)",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+
+  reviewModalCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 26,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 18,
+  },
+
+  reviewClose: {
+    position: "absolute",
+    right: 14,
+    top: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F3EFEC",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+
+  reviewModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.ink,
+  },
+
+  reviewModalSubtitle: {
+    fontSize: 13,
     color: COLORS.textLight,
+    marginTop: 3,
+    marginBottom: 16,
+    paddingRight: 40,
+  },
+
+  starPicker: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+
+  reviewInput: {
+    minHeight: 96,
+    borderWidth: 1,
+    borderColor: "#EAE3DF",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.ink,
+    textAlignVertical: "top",
+  },
+
+  reviewCounter: {
+    alignSelf: "flex-end",
+    fontSize: 11.5,
+    color: COLORS.textLight,
+    marginTop: 6,
+    marginBottom: 14,
+  },
+
+  reviewSubmit: {
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.brick,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  reviewSubmitText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 
   /* =======================================================
@@ -1239,21 +2103,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
+  errorIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   errorTitle: {
     fontSize: 18,
     lineHeight: 25,
     fontWeight: "700",
-    color: COLORS.text,
-    marginTop: 8,
+    color: COLORS.ink,
+    marginTop: 12,
     textAlign: "center",
   },
 
   backButton: {
     marginTop: 15,
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 22,
-    backgroundColor: COLORS.orange,
+    backgroundColor: COLORS.brick,
   },
 
   backButtonText: {
