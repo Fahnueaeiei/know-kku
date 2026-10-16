@@ -845,7 +845,7 @@ function EventsSection({
   const rows: KkuEvent[][] = [];
 
   (events ?? []).forEach((ev, i) => {
-    if (i % 3 === 0) rows.push([ev]);
+    if (i % 2 === 0) rows.push([ev]);
     else rows[rows.length - 1].push(ev);
   });
 
@@ -914,7 +914,7 @@ function EventsSection({
             />
           ))}
 
-          {row.length < 3 &&
+          {row.length < 2 &&
             Array.from({ length: 3 - row.length }).map((_, i) => (
               <View key={`spacer-${i}`} style={styles.eventSpacer} />
             ))}
@@ -967,12 +967,6 @@ function EventCard({
         <Text style={styles.eventTitle} numberOfLines={2}>
           {event.title}
         </Text>
-
-        {!!event.excerpt && (
-          <Text style={styles.eventExcerpt} numberOfLines={2}>
-            {event.excerpt}
-          </Text>
-        )}
 
         {!!event.venue && (
           <View style={styles.eventVenueRow}>
@@ -1272,193 +1266,196 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* PANEL (Checklist + Events ใช้หัวเดียวกัน) */
+/* CHECKLIST REMINDER */
 
-  panelTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.ink,
-  },
+reminderPanel: {
+  backgroundColor: COLORS.cream,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: COLORS.creamBorder,
+  padding: 12,
+  marginBottom: 16,
+},
 
-  panelSubtitle: {
-    marginTop: 1,
-    fontSize: 12,
-    color: COLORS.inkSoft,
-  },
+reminderHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginBottom: 10,
+},
 
-  /* CHECKLIST REMINDER */
+reminderHeaderIcon: {
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  backgroundColor: '#FBD9C2',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: 8,
+},
 
-  reminderPanel: {
-    backgroundColor: COLORS.cream,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: COLORS.creamBorder,
-    padding: 14,
-    marginBottom: 18,
-  },
+reminderHeaderText: {
+  flex: 1,
+  paddingRight: 4,
+},
 
-  reminderHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+panelTitle: {
+  fontSize: 15,
+  fontWeight: '800',
+  color: COLORS.ink,
+},
 
-  reminderHeaderIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FBD9C2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
+panelSubtitle: {
+  marginTop: 2,
+  fontSize: 11,
+  color: COLORS.inkSoft,
+},
 
-  reminderHeaderText: {
-    flex: 1,
-    paddingRight: 8,
-  },
+seeAll: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 1,
+},
 
-  seeAll: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
+seeAllText: {
+  fontSize: 11,
+  fontWeight: '700',
+  color: COLORS.orange,
+},
 
-  seeAllText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.orange,
-  },
+reminderMessage: {
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: 12,
+  gap: 4,
+},
 
-  reminderMessage: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 4,
-  },
+messageTitle: {
+  fontSize: 13,
+  fontWeight: '700',
+  color: COLORS.ink,
+},
 
-  messageTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.ink,
-  },
+messageText: {
+  fontSize: 11.5,
+  color: COLORS.inkSoft,
+  textAlign: 'center',
+},
 
-  messageText: {
-    fontSize: 12.5,
-    color: COLORS.inkSoft,
-    textAlign: 'center',
-  },
+reminderRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderRadius: 14,
+  paddingVertical: 9,
+  paddingLeft: 9,
+  paddingRight: 8,
+  marginBottom: 7,
+},
 
-  reminderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingLeft: 10,
-    paddingRight: 12,
-    marginBottom: 8,
-  },
+urgencyIcon: {
+  width: 30,
+  height: 30,
+  borderRadius: 15,
+  backgroundColor: 'rgba(255,255,255,0.7)',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: 8,
+},
 
-  urgencyIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
+reminderRowText: {
+  flex: 1,
+  minWidth: 0,
+  paddingRight: 5,
+},
 
-  reminderRowText: {
-    flex: 1,
-    paddingRight: 8,
-  },
+reminderItemTitle: {
+  fontSize: 12.5,
+  lineHeight: 17,
+  fontWeight: '700',
+  color: COLORS.ink,
+},
 
-  reminderItemTitle: {
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: '700',
-    color: COLORS.ink,
-  },
+reminderMeta: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 5,
+  marginTop: 4,
+},
 
-  reminderMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
+dueChip: {
+  backgroundColor: 'rgba(255,255,255,0.75)',
+  borderRadius: 8,
+  paddingHorizontal: 6,
+  paddingVertical: 2,
+},
 
-  dueChip: {
-    backgroundColor: 'rgba(255,255,255,0.75)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
+dueChipText: {
+  fontSize: 10.5,
+  fontWeight: '700',
+},
 
-  dueChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
+reminderTaskTitle: {
+  flex: 1,
+  minWidth: 0,
+  fontSize: 10.5,
+  color: COLORS.inkSoft,
+},
 
-  reminderTaskTitle: {
-    flex: 1,
-    fontSize: 11.5,
-    color: COLORS.inkSoft,
-  },
-
-  reminderMore: {
-    textAlign: 'center',
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: COLORS.brick,
-    paddingTop: 4,
-  },
+reminderMore: {
+  textAlign: 'center',
+  fontSize: 11.5,
+  fontWeight: '700',
+  color: COLORS.brick,
+  paddingTop: 3,
+},
 
   /* EVENTS (กรอบใหญ่) */
 
 eventsGrid: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  justifyContent: "space-between",
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-between',
+  gap: 10,
 },
 
 eventCard: {
-  width: '31.5%',
+  flex: 1,
+  minWidth: 0,
   backgroundColor: '#FFFFFF',
-  borderRadius: 12,
+  borderRadius: 14,
   overflow: 'hidden',
   borderWidth: 1,
   borderColor: '#EFE8E4',
 },
 
 eventImage: {
-  width: "100%",
-  height: 88,
-  backgroundColor: "#F3E9E1",
+  width: '100%',
+  height: 105,
+  backgroundColor: '#F3E9E1',
 },
 
 eventContent: {
-  padding: 8,
+  padding: 9,
 },
 
 eventTitle: {
   fontSize: 12,
   lineHeight: 17,
-  fontWeight: "600",
-  color: "#1A1A1A",
+  fontWeight: '700',
+  color: '#1A1A1A',
 },
 
 eventDate: {
   fontSize: 10,
   lineHeight: 14,
-  color: "#E8692B",
-  marginTop: 5,
+  color: '#E8692B',
+  marginTop: 4,
 },
 
 eventVenue: {
   fontSize: 10,
   lineHeight: 14,
-  color: "#8E8985",
+  color: '#8E8985',
   marginTop: 3,
 },
 
@@ -1481,24 +1478,27 @@ eventVenue: {
     marginBottom: 12,
   },
 
-  eventRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 10,
-  },
+ eventRow: {
+  flexDirection: 'row',
+  alignItems: 'stretch',
+  justifyContent: 'space-between',
+  gap: 10,
+  marginBottom: 10,
+  width: '100%',
+},
 
-  eventSpacer: {
-    width: '31.5%',
-  },
+eventSpacer: {
+  flex: 1,
+  minWidth: 0,
+},
 
-  eventSkeleton: {
-    flex: 1,
-    height: 200,
-    borderRadius: 20,
-    backgroundColor: COLORS.skeleton,
-  },
+eventSkeleton: {
+  flex: 1,
+  minWidth: 0,
+  height: 155,
+  borderRadius: 14,
+  backgroundColor: COLORS.skeleton,
+},
 
   eventsMessage: {
     alignItems: 'center',
@@ -1507,54 +1507,50 @@ eventVenue: {
     gap: 8,
   },
 
-  eventImagePlaceholder: {
-    backgroundColor: 'rgba(255,255,255,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+eventImagePlaceholder: {
+  backgroundColor: 'rgba(255,255,255,0.55)',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
 
-  eventBody: {
-    flex: 1,
-    padding: 10,
-    gap: 5,
-  },
+eventBody: {
+  padding: 9,
+  gap: 6,
+},
 
-  eventDateChip: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 9,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
+eventDateChip: {
+  alignSelf: 'flex-start',
+  flexDirection: 'row',
+  alignItems: 'center',
+  flexShrink: 1,
+  gap: 4,
+  backgroundColor: 'rgba(255,255,255,0.7)',
+  borderRadius: 9,
+  paddingHorizontal: 7,
+  paddingVertical: 3,
+},
 
-  eventDateText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: COLORS.brick,
-  },
+eventDateText: {
+  flexShrink: 1,
+  fontSize: 10,
+  lineHeight: 14,
+  fontWeight: '700',
+  color: COLORS.brick,
+},
 
-  eventExcerpt: {
-    fontSize: 11.5,
-    lineHeight: 16,
-    color: COLORS.inkSoft,
-  },
+eventVenueRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+  marginTop: 'auto',
+  paddingTop: 2,
+},
 
-  eventVenueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 'auto',
-    paddingTop: 2,
-  },
-
-  eventVenueText: {
-    flex: 1,
-    fontSize: 11,
-    color: COLORS.inkSoft,
-  },
+eventVenueText: {
+  flex: 1,
+  fontSize: 11,
+  color: COLORS.inkSoft,
+},
 
   allButton: {
     height: 46,

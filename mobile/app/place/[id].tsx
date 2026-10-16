@@ -15,7 +15,7 @@ import {
 
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { getPlace } from "../../api/api";
+import { getPlace, getPlaces } from "../../api/api";
 
 /* =========================================================
    COLORS
@@ -91,6 +91,64 @@ type PlaceDetail = {
 
   nearbyPlaces: NearbyPlace[];
 };
+
+
+/* =========================================================
+   NEARBY MOCK DATA
+   เปลี่ยนเป็นข้อมูลจาก Backend ได้ภายหลัง
+========================================================= */
+
+const MOCK_NEARBY_PLACES: NearbyPlace[] = [
+  {
+    placeId: "mock-nearby-1",
+    name: "University Library",
+    category: "Library",
+    distance: "300 m",
+    image: {
+      uri: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=600",
+    },
+  },
+  {
+    placeId: "mock-nearby-2",
+    name: "Campus Cafe",
+    category: "Cafe",
+    distance: "450 m",
+    image: {
+      uri: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600",
+    },
+  },
+  {
+    placeId: "mock-nearby-3",
+    name: "Campus Restaurant",
+    category: "Restaurant",
+    distance: "600 m",
+    image: {
+      uri: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600",
+    },
+  },
+  {
+    placeId: "mock-nearby-4",
+    name: "Study Space",
+    category: "Study Space",
+    distance: "800 m",
+    image: {
+      uri: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=600",
+    },
+  },
+];
+
+/*
+  แยกฟังก์ชันนี้ไว้สำหรับ Nearby โดยเฉพาะ
+  เมื่อ Backend พร้อม ให้เปลี่ยนส่วน return เป็นการเรียก API
+*/
+async function getNearbyPlaces(
+  currentPlaceId: string
+): Promise<NearbyPlace[]> {
+  return MOCK_NEARBY_PLACES.filter(
+    (item) => item.placeId !== currentPlaceId
+  );
+}
+
 
 /* =========================================================
    OPENING HOURS HELPERS
@@ -176,8 +234,12 @@ export default function PlaceDetailScreen() {
     const loadPlaceDetail = async () => {
       try {
         setLoading(true);
-
         const data = await getPlace(id);
+
+        const nearbyPlaces = await getNearbyPlaces(
+          String(data.placeId)
+        );
+
         setPlace({
           placeId: String(data.placeId),
           name: data.name,
@@ -214,7 +276,7 @@ export default function PlaceDetailScreen() {
                     ? "#4BA6D8"
                     : "#F2C94C",
           })),
-          nearbyPlaces: [],
+          nearbyPlaces: nearbyPlaces,
         });
       } catch (error) {
         console.error(
@@ -600,22 +662,14 @@ export default function PlaceDetailScreen() {
         {/* NEARBY LIST */}
 
         <View style={styles.nearbyList}>
-
-          {place.nearbyPlaces.map(
-            (nearby) => (
+            {place.nearbyPlaces.map((nearby) => (
               <NearbyPlaceCard
                 key={nearby.placeId}
                 place={nearby}
-                onPress={() =>
-                  openNearbyPlace(
-                    nearby
-                  )
-                }
+                onPress={() => openNearbyPlace(nearby)}
               />
-            )
-          )}
-
-        </View>
+            ))}
+          </View>
 
         <View style={styles.bottomSpace} />
 
@@ -625,9 +679,9 @@ export default function PlaceDetailScreen() {
   );
 }
 
-/* =========================================================
+/* =======================================================
    NEARBY PLACE CARD
-========================================================= */
+======================================================= */
 
 function NearbyPlaceCard({
   place,
@@ -636,10 +690,7 @@ function NearbyPlaceCard({
   place: NearbyPlace;
   onPress: () => void;
 }) {
-  /* =======================================================
-     CATEGORY ICON
-  ======================================================= */
-
+  /* CATEGORY ICON */
   const categoryIcon =
     place.category === "Restaurant"
       ? "restaurant-outline"
@@ -660,23 +711,18 @@ function NearbyPlaceCard({
       style={styles.nearbyCard}
       onPress={onPress}
     >
-
       {/* IMAGE */}
-
       <Image
         source={place.image}
         style={styles.nearbyImage}
       />
 
       {/* CONTENT */}
-
       <View style={styles.nearbyContent}>
-
         <View style={styles.nearbyTitleRow}>
-
           <Text
             style={styles.nearbyName}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {place.name}
           </Text>
@@ -686,13 +732,10 @@ function NearbyPlaceCard({
             size={15}
             color={COLORS.textLight}
           />
-
         </View>
 
         {/* CATEGORY */}
-
         <View style={styles.nearbyCategory}>
-
           <Ionicons
             name={categoryIcon}
             size={12}
@@ -702,34 +745,14 @@ function NearbyPlaceCard({
           <Text
             style={[
               styles.nearbyCategoryText,
-              {
-                color: categoryColor,
-              },
+              { color: categoryColor },
             ]}
+            numberOfLines={1}
           >
             {place.category}
           </Text>
-
         </View>
-
-        {/* DISTANCE */}
-
-        <View style={styles.distanceRow}>
-
-          <Ionicons
-            name="location-outline"
-            size={11}
-            color={COLORS.textLight}
-          />
-
-          <Text style={styles.distanceText}>
-            {place.distance}
-          </Text>
-
-        </View>
-
       </View>
-
     </TouchableOpacity>
   );
 }
@@ -739,7 +762,6 @@ function NearbyPlaceCard({
 ========================================================= */
 
 const styles = StyleSheet.create({
-
   /* =======================================================
      SCREEN
   ======================================================= */
@@ -750,9 +772,9 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
 
   /* =======================================================
@@ -762,22 +784,17 @@ const styles = StyleSheet.create({
   topBackButton: {
     flexDirection: "row",
     alignItems: "center",
-
     alignSelf: "flex-start",
-
-    paddingVertical: 7,
-    paddingHorizontal: 5,
-
-    marginBottom: 7,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    marginBottom: 8,
   },
 
   backText: {
-    fontSize: 9.5,
+    fontSize: 14,
     fontWeight: "600",
-
     color: COLORS.text,
-
-    marginLeft: 5,
+    marginLeft: 7,
   },
 
   /* =======================================================
@@ -786,23 +803,16 @@ const styles = StyleSheet.create({
 
   mainCard: {
     backgroundColor: COLORS.white,
-
     borderRadius: 25,
-
     overflow: "hidden",
-
-    marginBottom: 17,
-
+    marginBottom: 20,
     shadowColor: "#AFA7A2",
-
     shadowOffset: {
       width: 0,
       height: 4,
     },
-
     shadowOpacity: 0.09,
     shadowRadius: 9,
-
     elevation: 3,
   },
 
@@ -812,44 +822,32 @@ const styles = StyleSheet.create({
 
   imageContainer: {
     width: "100%",
-    height: 185,
-
+    height: 210,
     position: "relative",
   },
 
   mainImage: {
     width: "100%",
     height: "100%",
-
     resizeMode: "cover",
   },
 
   categoryBadge: {
     position: "absolute",
-
-    left: 11,
-    bottom: 11,
-
-    height: 27,
-
-    paddingHorizontal: 10,
-
-    borderRadius: 14,
-
-    backgroundColor:
-      "rgba(255,255,255,0.94)",
-
+    left: 12,
+    bottom: 12,
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.96)",
     flexDirection: "row",
     alignItems: "center",
-
-    gap: 4,
+    gap: 6,
   },
 
   categoryText: {
-    fontSize: 8.5,
-
+    fontSize: 12,
     fontWeight: "700",
-
     color: COLORS.orange,
   },
 
@@ -858,57 +856,45 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   mainContent: {
-    paddingHorizontal: 13,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
   },
 
   placeName: {
-    fontSize: 18,
-
+    fontSize: 22,
+    lineHeight: 29,
     fontWeight: "800",
-
     color: COLORS.text,
-
-    marginBottom: 11,
+    marginBottom: 16,
   },
 
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-
-    marginBottom: 11,
+    marginBottom: 13,
   },
 
   infoIcon: {
-    width: 29,
-    height: 29,
-
-    borderRadius: 10,
-
-    backgroundColor:
-      COLORS.orangeLight,
-
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: COLORS.orangeLight,
     alignItems: "center",
     justifyContent: "center",
-
-    marginRight: 8,
+    marginRight: 12,
   },
 
   infoLabel: {
-    fontSize: 7.5,
-
+    fontSize: 12,
     color: COLORS.textLight,
-
     fontWeight: "600",
-
-    marginBottom: 2,
+    marginBottom: 4,
   },
 
   infoValue: {
-    fontSize: 9.5,
-
+    fontSize: 14,
+    lineHeight: 20,
     color: COLORS.text,
-
     fontWeight: "600",
   },
 
@@ -961,13 +947,10 @@ const styles = StyleSheet.create({
   },
 
   description: {
-    fontSize: 8.5,
-
-    lineHeight: 13,
-
+    fontSize: 14,
+    lineHeight: 22,
     color: COLORS.textSecondary,
-
-    marginBottom: 13,
+    marginBottom: 18,
   },
 
   /* =======================================================
@@ -975,27 +958,19 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   directionButton: {
-    height: 42,
-
-    borderRadius: 21,
-
+    minHeight: 48,
+    borderRadius: 24,
     backgroundColor: COLORS.orange,
-
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "center",
-
-    gap: 6,
+    gap: 8,
   },
 
   directionText: {
-    fontSize: 9.5,
-
+    fontSize: 14,
     color: "#FFFFFF",
-
-    fontWeight: "800",
+    fontWeight: "700",
   },
 
   /* =======================================================
@@ -1003,77 +978,59 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   favoriteIconButton: {
-    width: 30,
-    height: 30,
-
-    borderRadius: 15,
-
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-
     backgroundColor: "#FFF1F2",
   },
 
   favoriteIconButtonActive: {
     backgroundColor: "#FFE3E5",
   },
+
   sectionHeader: {
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "space-between",
-
-    marginBottom: 9,
+    marginBottom: 12,
   },
 
   favoriteChip: {
     borderWidth: 1,
-
     borderColor: "#F2C7C9",
-
-    backgroundColor:
-      "#FFF5F5",
+    backgroundColor: "#FFF5F5",
   },
 
   favoriteChipActive: {
-    backgroundColor:
-      COLORS.favorite,
-
-    borderColor:
-      COLORS.favorite,
+    backgroundColor: COLORS.favorite,
+    borderColor: COLORS.favorite,
   },
 
   favoriteText: {
-    color:
-      COLORS.favorite,
+    color: COLORS.favorite,
   },
 
   sectionTitle: {
-    fontSize: 13.5,
-
+    fontSize: 18,
+    lineHeight: 25,
     fontWeight: "800",
-
     color: COLORS.text,
   },
 
   sectionSubtitle: {
-    fontSize: 7.5,
-
+    fontSize: 13,
+    lineHeight: 19,
     color: COLORS.textLight,
-
-    marginTop: 2,
+    marginTop: 3,
   },
 
   busIcon: {
-    width: 34,
-    height: 34,
-
-    borderRadius: 12,
-
-    backgroundColor:
-      COLORS.orangeLight,
-
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: COLORS.orangeLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1084,51 +1041,38 @@ const styles = StyleSheet.create({
 
   shuttleCard: {
     backgroundColor: COLORS.white,
-
-    borderRadius: 20,
-
-    paddingHorizontal: 12,
-
-    paddingVertical: 3,
-
-    marginBottom: 17,
-
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    marginBottom: 26,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     shadowColor: "#AFA7A2",
-
     shadowOffset: {
       width: 0,
       height: 3,
     },
-
-    shadowOpacity: 0.07,
-
-    shadowRadius: 8,
-
+    shadowOpacity: 0.06,
+    shadowRadius: 7,
     elevation: 2,
   },
 
   routeItem: {
-    minHeight: 55,
-
+    minHeight: 66,
     flexDirection: "row",
-
     alignItems: "center",
   },
 
   routeDivider: {
     borderBottomWidth: 1,
-
-    borderBottomColor:
-      COLORS.border,
+    borderBottomColor: COLORS.border,
   },
 
   routeDot: {
     width: 12,
     height: 12,
-
     borderRadius: 6,
-
-    marginRight: 10,
+    marginRight: 12,
   },
 
   routeInfo: {
@@ -1136,31 +1080,32 @@ const styles = StyleSheet.create({
   },
 
   routeName: {
-    fontSize: 9.5,
-
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "700",
-
     color: COLORS.text,
   },
 
   routeSubtitle: {
-    fontSize: 7.5,
-
+    fontSize: 12,
+    lineHeight: 18,
     color: COLORS.textLight,
-
-    marginTop: 2,
+    marginTop: 3,
   },
 
   noBusContainer: {
-    minHeight: 70,
+    minHeight: 90,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 12,
   },
 
   noBusText: {
-    fontSize: 8.5,
+    fontSize: 13,
+    lineHeight: 19,
     color: COLORS.textLight,
-    marginTop: 5,
+    textAlign: "center",
+    marginTop: 8,
   },
 
   /* =======================================================
@@ -1169,24 +1114,25 @@ const styles = StyleSheet.create({
 
   nearbyHeader: {
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "space-between",
-
-    marginBottom: 9,
+    marginBottom: 14,
   },
 
   mapText: {
-    fontSize: 8.5,
-
+    fontSize: 14,
     fontWeight: "700",
-
     color: COLORS.orange,
+    paddingVertical: 8,
+    paddingLeft: 12,
   },
 
   nearbyList: {
-    gap: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 14,
+    paddingBottom: 12,
   },
 
   /* =======================================================
@@ -1194,96 +1140,68 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   nearbyCard: {
-    minHeight: 73,
-
+    width: "48.5%",
     backgroundColor: COLORS.white,
-
-    borderRadius: 18,
-
-    padding: 8,
-
-    flexDirection: "row",
-
-    shadowColor: "#AFA7A2",
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-
-    shadowOpacity: 0.06,
-
-    shadowRadius: 6,
-
-    elevation: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   nearbyImage: {
-    width: 57,
-    height: 57,
-
-    borderRadius: 14,
-
+    width: "100%",
+    height: 115,
     resizeMode: "cover",
+    backgroundColor: "#F3E9E1",
   },
 
   nearbyContent: {
-    flex: 1,
-
-    paddingLeft: 9,
-
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
   },
 
   nearbyTitleRow: {
     flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
 
   nearbyName: {
     flex: 1,
-
-    fontSize: 9.5,
-
+    fontSize: 13,
+    lineHeight: 19,
     fontWeight: "700",
-
     color: COLORS.text,
-
-    marginRight: 5,
+    marginRight: 4,
   },
 
   nearbyCategory: {
     flexDirection: "row",
-
     alignItems: "center",
-
-    marginTop: 5,
-
-    gap: 4,
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: COLORS.orangeLight,
+    gap: 5,
   },
 
   nearbyCategoryText: {
-    fontSize: 7.5,
-
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: "600",
   },
 
   distanceRow: {
     flexDirection: "row",
-
     alignItems: "center",
-
-    marginTop: 5,
-
-    gap: 3,
+    marginTop: 7,
+    gap: 4,
   },
 
   distanceText: {
-    fontSize: 7.5,
-
+    fontSize: 12,
+    lineHeight: 17,
     color: COLORS.textLight,
   },
 
@@ -1293,19 +1211,14 @@ const styles = StyleSheet.create({
 
   loadingContainer: {
     flex: 1,
-
     alignItems: "center",
     justifyContent: "center",
-
-    backgroundColor:
-      COLORS.background,
+    backgroundColor: COLORS.background,
   },
 
   loadingText: {
-    fontSize: 9,
-
+    fontSize: 13,
     color: COLORS.textLight,
-
     marginTop: 8,
   },
 
@@ -1315,41 +1228,32 @@ const styles = StyleSheet.create({
 
   errorContainer: {
     flex: 1,
-
     alignItems: "center",
     justifyContent: "center",
-
-    backgroundColor:
-      COLORS.background,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 24,
   },
 
   errorTitle: {
-    fontSize: 14,
-
+    fontSize: 18,
+    lineHeight: 25,
     fontWeight: "700",
-
     color: COLORS.text,
-
     marginTop: 8,
+    textAlign: "center",
   },
 
   backButton: {
     marginTop: 15,
-
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-
-    borderRadius: 20,
-
-    backgroundColor:
-      COLORS.orange,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 22,
+    backgroundColor: COLORS.orange,
   },
 
   backButtonText: {
-    fontSize: 9,
-
+    fontSize: 13,
     color: "#FFFFFF",
-
     fontWeight: "700",
   },
 
@@ -1358,6 +1262,6 @@ const styles = StyleSheet.create({
   ======================================================= */
 
   bottomSpace: {
-    height: 15,
+    height: 20,
   },
 });

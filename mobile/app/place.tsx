@@ -33,22 +33,26 @@ type Place = {
 /* =========================================================
    DESIGN TOKENS
 ========================================================= */
-
 const COLORS = {
-  orange: "#FA7C35",
-  orangeLight: "#FFF0E8",
+  orange: '#E8692B',
+  orangeLight: '#FFF4EA',
+  background: '#FCF9F7',
+  white: '#FFFFFF',
+  text: '#1A1A1A',
+  textSecondary: '#4A4644',
+  textLight: '#8E8985',
+  border: '#EFE8E4',
+  categoryBackground: '#F3E9E1',
+  favorite: '#E63946',
+  cream: '#FFF4EA',
+  creamBorder: '#F4DCCB',
 
-  background: "#FAF7F5",
-  white: "#FFFFFF",
-
-  text: "#2A2928",
-  textSecondary: "#686360",
-  textLight: "#8E8985",
-
-  border: "#EFE8E4",
-
-  categoryBackground: "#F0ECE8",
-  favorite: "#E63946",
+  // Pastel colors from Home
+  pastelPink: '#F7D6E4',
+  pastelMint: '#B5EFE3',
+  pastelPurple: '#E3DBFA',
+  pastelPeach: '#FDE2C6',
+  pastelBlue: '#D2E7FB',
 };
 
 /* =========================================================
@@ -458,197 +462,129 @@ export default function PlaceScreen() {
    STYLES
 ========================================================= */
 
-const styles = StyleSheet.create({
-  /* ================= SCREEN ================= */
 
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor:
-      COLORS.background,
+    backgroundColor: COLORS.background,
   },
-
   listContent: {
-    paddingHorizontal: 10,
-    paddingTop: 7,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-
-  /* ================= SEARCH ================= */
-
   searchContainer: {
-    height: 35,
-    width: "100%",
-
-    borderRadius: 18,
-
-    backgroundColor:
-      COLORS.white,
-
-    flexDirection: "row",
-    alignItems: "center",
-
-    paddingHorizontal: 11,
-
-    marginBottom: 16,
-
-    borderWidth: 0.5,
-    borderColor: "#F0EBE8",
+    minHeight: 44,
+    width: '100%',
+    borderRadius: 22,
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-
   searchInput: {
     flex: 1,
-
-    height: 35,
-
-    marginLeft: 7,
-
+    minHeight: 42,
+    marginLeft: 9,
     paddingVertical: 0,
-
-    fontSize: 9,
-
+    fontSize: 13,
     color: COLORS.text,
   },
-
-  /* ================= SECTION ================= */
-
   sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
-
-    marginBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: '800',
     color: COLORS.text,
   },
-
   favoriteCount: {
-    fontSize: 9,
-    fontWeight: "500",
+    fontSize: 12,
+    fontWeight: '500',
     color: COLORS.textLight,
   },
-
-  /* ================= CATEGORIES ================= */
-
   categoriesList: {
-    paddingBottom: 18,
-    paddingRight: 10,
+    paddingBottom: 22,
+    paddingRight: 4,
   },
-
   categoryChip: {
-    minHeight: 34,
-
+    minHeight: 36,
     paddingHorizontal: 15,
-
     borderRadius: 18,
-
-    backgroundColor:
-      COLORS.categoryBackground,
-
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-
+    backgroundColor: COLORS.categoryBackground,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 8,
-
     gap: 5,
   },
-
   categoryChipActive: {
-    backgroundColor:
-      COLORS.orange,
+    backgroundColor: COLORS.orange,
   },
-
   categoryText: {
-    fontSize: 9.5,
-    fontWeight: "600",
-    color: "#5F5955",
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
-
   categoryTextActive: {
-    color: "#FFFFFF",
+    color: COLORS.white,
   },
-
   favoriteChip: {
     borderWidth: 1,
-    borderColor: "#F2C7C9",
-    backgroundColor: "#FFF5F5",
+    borderColor: '#F2C7C9',
+    backgroundColor: '#FFF5F5',
   },
-
   favoriteChipActive: {
-    backgroundColor:
-      COLORS.favorite,
-    borderColor:
-      COLORS.favorite,
+    backgroundColor: COLORS.favorite,
+    borderColor: COLORS.favorite,
   },
-
   favoriteText: {
     color: COLORS.favorite,
   },
   favoriteIconButton: {
-    width: 30,
-    height: 30,
-
-    borderRadius: 15,
-
-    alignItems: "center",
-    justifyContent: "center",
-
-    backgroundColor: "#FFF1F2",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF1F2',
   },
-
   favoriteIconButtonActive: {
-    backgroundColor: "#FFE3E5",
+    backgroundColor: '#FFE3E5',
   },
-
-  /* ================= RESULT ================= */
-
   resultHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
-
-    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-
   resultTitle: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: '800',
     color: COLORS.text,
   },
-
   resultCount: {
-    fontSize: 8.5,
+    fontSize: 12,
     color: COLORS.textLight,
   },
-
-  /* ================= EMPTY ================= */
-
   emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-
-    paddingTop: 45,
-    paddingBottom: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 48,
+    paddingBottom: 36,
   },
-
   emptyText: {
-    marginTop: 10,
-
-    fontSize: 9,
-
+    marginTop: 12,
+    fontSize: 13,
     color: COLORS.textLight,
-
-    textAlign: "center",
+    textAlign: 'center',
   },
-
-  /* ================= BOTTOM ================= */
-
   bottomSpace: {
-    height: 15,
+    height: 24,
   },
 });
