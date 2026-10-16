@@ -19,6 +19,7 @@ import { db } from "./db/index.js";
 import {
   places,
   checklist,
+  checklistItems,
   users,
   events,
   news,
@@ -31,7 +32,9 @@ import {
   lte,
   or,
   desc,
+  inArray,
 } from "drizzle-orm";
+import { error } from "node:console";
 
 // ================= CONFIG =================
 
@@ -1092,6 +1095,448 @@ app.patch(
     }
   }
 );
+
+
+/* ================= DEMO CHECKLIST API ================= */
+/* Temporary shared demo data. Do not use as production auth. */
+
+type DemoItemInput = {
+  itemId?: number;
+  title: string;
+  subtitle?: string | null;
+  completed?: boolean;
+  dueDate?: string | null;
+  dueTime?: string | null;
+  note?: string | null;
+  url?: string | null;
+  location?: string | null;
+  placeId?: number | null;
+};
+
+const DEMO_CLERK_ID = "know-kku-demo";
+const DEMO_EMAIL = "know-kku-demo@demo.invalid";
+
+async function getDemoUserId(): Promise<number> {
+  let user = await db.query.users.findFirst({
+    where: eq(users.clerkUserId, DEMO_CLERK_ID),
+  });
+
+  if (!user) {
+    const [created] = await db
+      .insert(users)
+      .values({
+        clerkUserId: DEMO_CLERK_ID,
+        name: "Know KKU Demo",
+        email: DEMO_EMAIL,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    user = created ?? await db.query.users.findFirst({
+      where: eq(users.clerkUserId, DEMO_CLERK_ID),
+    });
+  }
+
+  if (!user) {
+    throw new Error(
+      "Could not find or create the Demo user. Check users table constraints."
+    );
+  }
+
+  return user.userId;
+}
+
+async function getDemoTasks(userId: number) {
+  const tasks = await db
+    .select()
+    .from(checklist)
+    .where(eq(checklist.userId, userId));
+
+  if (tasks.length === 0) return [];
+
+  const items = await db
+    .select()
+    .from(checklistItems)
+    .where(
+      inArray(
+        checklistItems.taskId,
+        tasks.map((task) => task.taskId)
+      )
+    );
+
+  return tasks.map((task) => ({
+    ...task,
+    items: items.filter((item) => item.taskId === task.taskId),
+  }));
+}
+
+function itemValues(item: DemoItemInput) {
+  return {
+    title: item.title.trim(),
+    subtitle: item.subtitle ?? null,
+    completed: item.completed ?? false,
+    completedAt: item.completed ? new Date() : null,
+    dueDate: item.dueDate || null,
+    dueTime: item.dueTime || null,
+    note: item.note ?? null,
+    url: item.url ?? null,
+    location: item.location ?? null,
+    placeId: item.placeId ?? null,
+  };
+}
+
+// GET all Demo checklists, including their items
+app.get("/checklists", async (_req, res) => {
+  try {
+    const userId = await getDemoUserId();
+    return res.json(await getDemoTasks(userId));
+  } catch (error) {
+    console.error("GET /checklists:", error);
+    return res.status(500).json({
+      error: "Failed to fetch checklists",
+    });
+  }
+});
+
+// CREATE a Demo checklist and its items
+app.post("/checklists", async (req, res) => {
+  try {
+    const { title, description, items } = req.body as {
+      title?: string;
+      description?: string | null;
+      items?: DemoItemInput[];
+    };
+
+    if (!title?.trim()) {
+      return res.status(400).json({
+        error: "title is required",
+      });
+    }
+
+    if (
+      items !== undefined &&
+      (!Array.isArray(items) ||
+        items.some((item) => !item.title?.trim()))
+    ) {
+      return res.status(400).json({
+        error: "items must be an array of items with titles",
+      });
+    }
+
+    const userId = await getDemoUserId();
+
+    const [task] = await db
+      .insert(checklist)
+      .values({
+        userId,
+        title: title.trim(),
+        description: description ?? null,
+      })
+      .returning();
+if (!task) {
+  return res.status(404).json({
+    message: "Checklist task not found",
+  });
+}
+
+if (items?.length) {
+  await db.insert(checklistItems).values(
+    items.map((item) => ({
+      taskId: task.taskId,
+      ...itemValues(item),
+    }))
+  );
+}
+
+    const result = (await getDemoTasks(userId)).find(
+      (entry) => entry.taskId === task.taskId
+    );
+
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error("POST /checklists:", error);
+    return res.status(500).json({
+      error: "Failed to create checklist",
+    });
+  }
+});
+
+// UPDATE a Demo checklist and reconcile its items
+app.put("/checklists/:id", async (req, res) => {
+  try {
+    const taskId = Number(req.params.id);
+    const { title, description, items } = req.body as {
+      title?: string;
+      description?: string | null;
+      items?: DemoItemInput[];
+    };
+
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      return res.status(400).json({ error: "Invalid checklist ID" });
+    }
+
+    if (!title?.trim()) {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    if (
+      !Array.isArray(items) ||
+      items.some((item) => !item.title?.trim())
+    ) {
+      return res.status(400).json({
+        error: "items must be an array of items with titles",
+      });
+    }
+
+    const userId = await getDemoUserId();
+
+    const [existingTask] = await db
+      .select()
+      .from(checklist)
+      .where(
+        and(
+          eq(checklist.taskId, taskId),
+          eq(checklist.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!existingTask) {
+      return res.status(404).json({ error: "Checklist not found" });
+    }
+
+    await db
+      .update(checklist)
+      .set({
+        title: title.trim(),
+        description: description ?? null,
+      })
+      .where(
+        and(
+          eq(checklist.taskId, taskId),
+          eq(checklist.userId, userId)
+        )
+      );
+
+    const existingItems = await db
+      .select()
+      .from(checklistItems)
+      .where(eq(checklistItems.taskId, taskId));
+
+    const existingIds = new Set(
+      existingItems.map((item) => item.itemId)
+    );
+    const retainedIds = new Set<number>();
+
+    for (const item of items) {
+      if (item.itemId && existingIds.has(item.itemId)) {
+        await db
+          .update(checklistItems)
+          .set(itemValues(item))
+          .where(
+            and(
+              eq(checklistItems.itemId, item.itemId),
+              eq(checklistItems.taskId, taskId)
+            )
+          );
+
+        retainedIds.add(item.itemId);
+      } else {
+        const [created] = await db
+          .insert(checklistItems)
+          .values({
+            taskId,
+            ...itemValues(item),
+          })
+          .returning();
+
+        if (!created) {
+          throw new Error("Failed to create checklist item")
+        }
+
+        retainedIds.add(created.itemId);
+      }
+    }
+
+    for (const oldItem of existingItems) {
+      if (!retainedIds.has(oldItem.itemId)) {
+        await db
+          .delete(checklistItems)
+          .where(eq(checklistItems.itemId, oldItem.itemId));
+      }
+    }
+
+    const result = (await getDemoTasks(userId)).find(
+      (entry) => entry.taskId === taskId
+    );
+
+    return res.json(result);
+  } catch (error) {
+    console.error("PUT /checklists/:id:", error);
+    return res.status(500).json({
+      error: "Failed to update checklist",
+    });
+  }
+});
+
+// UPDATE an individual Demo checklist item
+app.patch("/checklists/items/:itemId", async (req, res) => {
+  try {
+    const itemId = Number(req.params.itemId);
+
+    if (!Number.isInteger(itemId) || itemId <= 0) {
+      return res.status(400).json({ error: "Invalid item ID" });
+    }
+
+    const userId = await getDemoUserId();
+
+    const [item] = await db
+      .select()
+      .from(checklistItems)
+      .where(eq(checklistItems.itemId, itemId))
+      .limit(1);
+
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const [parent] = await db
+      .select({ taskId: checklist.taskId })
+      .from(checklist)
+      .where(
+        and(
+          eq(checklist.taskId, item.taskId),
+          eq(checklist.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!parent) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const body = req.body as Partial<DemoItemInput>;
+    const patch: Record<string, unknown> = {};
+
+    if (typeof body.title === "string") {
+      if (!body.title.trim()) {
+        return res.status(400).json({ error: "title cannot be empty" });
+      }
+      patch.title = body.title.trim();
+    }
+
+    if ("subtitle" in body) patch.subtitle = body.subtitle ?? null;
+    if ("completed" in body && typeof body.completed === "boolean") {
+      patch.completed = body.completed;
+      patch.completedAt = body.completed ? new Date() : null;
+    }
+    if ("dueDate" in body) patch.dueDate = body.dueDate || null;
+    if ("dueTime" in body) patch.dueTime = body.dueTime || null;
+    if ("note" in body) patch.note = body.note ?? null;
+    if ("url" in body) patch.url = body.url ?? null;
+    if ("location" in body) patch.location = body.location ?? null;
+    if ("placeId" in body) patch.placeId = body.placeId ?? null;
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    const [updated] = await db
+      .update(checklistItems)
+      .set(patch)
+      .where(
+        and(
+          eq(checklistItems.itemId, itemId),
+          eq(checklistItems.taskId, item.taskId)
+        )
+      )
+      .returning();
+
+    return res.json(updated);
+  } catch (error) {
+    console.error("PATCH checklist item:", error);
+    return res.status(500).json({
+      error: "Failed to update checklist item",
+    });
+  }
+});
+
+// DELETE an individual Demo checklist item
+app.delete("/checklists/items/:itemId", async (req, res) => {
+  try {
+    const itemId = Number(req.params.itemId);
+    const userId = await getDemoUserId();
+
+    const [item] = await db
+      .select()
+      .from(checklistItems)
+      .where(eq(checklistItems.itemId, itemId))
+      .limit(1);
+
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const [parent] = await db
+      .select({ taskId: checklist.taskId })
+      .from(checklist)
+      .where(
+        and(
+          eq(checklist.taskId, item.taskId),
+          eq(checklist.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!parent) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    await db
+      .delete(checklistItems)
+      .where(eq(checklistItems.itemId, itemId));
+
+    return res.json({ success: true, itemId });
+  } catch (error) {
+    console.error("DELETE checklist item:", error);
+    return res.status(500).json({
+      error: "Failed to delete checklist item",
+    });
+  }
+});
+
+// DELETE a Demo checklist and all its items
+app.delete("/checklists/:id", async (req, res) => {
+  try {
+    const taskId = Number(req.params.id);
+    const userId = await getDemoUserId();
+
+    const [deleted] = await db
+      .delete(checklist)
+      .where(
+        and(
+          eq(checklist.taskId, taskId),
+          eq(checklist.userId, userId)
+        )
+      )
+      .returning();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Checklist not found" });
+    }
+
+    // checklist_items are removed by ON DELETE CASCADE.
+    return res.json({ success: true, deleted });
+  } catch (error) {
+    console.error("DELETE /checklists/:id:", error);
+    return res.status(500).json({
+      error: "Failed to delete checklist",
+    });
+  }
+});
+
+/* ================= END DEMO CHECKLIST API ================= */
+
 
 // ================= CHECKLIST =================
 

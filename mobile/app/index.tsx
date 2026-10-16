@@ -334,7 +334,7 @@ const loadEvents = useCallback(async () => {
     const query = searchText.trim();
     if (!query) return;
 
-    router.push({ pathname: '/search', params: { q: query } });
+    router.push({ pathname: '/search' as any, params: { q: query } });
   };
 
   const openChecklist = () => router.push('/checklist');
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
   },
 
   heroImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
@@ -1108,7 +1108,7 @@ const styles = StyleSheet.create({
   },
 
   heroTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(110,40,8,0.30)',
   },
 

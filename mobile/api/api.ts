@@ -164,7 +164,7 @@ export const getEventById = (id: string | number) =>
      (server ตั้ง completedAt เอง ตอน completed เปลี่ยนเป็น true)
 ========================================================= */
 
-const USE_CHECKLIST_MOCK = true;
+const USE_CHECKLIST_MOCK = false;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 

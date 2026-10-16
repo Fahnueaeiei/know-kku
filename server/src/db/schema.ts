@@ -385,6 +385,39 @@ export const checklist = pgTable(
   }
 );
 
+
+export const checklistItems = pgTable("checklist_items", {
+  itemId: serial("item_id").primaryKey(),
+
+  taskId: integer("task_id")
+    .references(() => checklist.taskId, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+
+  title: varchar("title", { length: 255 }).notNull(),
+  subtitle: text("subtitle"),
+
+  completed: boolean("completed")
+    .notNull()
+    .default(false),
+
+  completedAt: timestamp("completed_at"),
+
+  dueDate: date("due_date"),
+  dueTime: time("due_time", { precision: 0 }),
+
+  note: text("note"),
+  url: varchar("url", { length: 1000 }),
+  location: varchar("location", { length: 255 }),
+
+  placeId: integer("place_id")
+    .references(() => places.placeId, {
+      onDelete: "set null",
+    }),
+});
+
+
 // ---------- Event Participant ----------
 
 export const eventParticipants = pgTable(
