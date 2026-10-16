@@ -20,7 +20,7 @@ import {
 
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { getPlace } from "../../api/api";
+import { getPlace, getPlaces } from "../../api/api";
 import {
   COLORS,
   CARD_COLORS,
