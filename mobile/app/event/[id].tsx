@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { getEventById } from "../../api/api";
+import { fetchKkuEventById } from "../../api/events";
 import { COLORS } from "../../constants/appTheme";
 
 /* =========================================================
@@ -28,9 +30,18 @@ type EventDetail = {
   eventId: string | number;
   title: string;
   category?: string | null;
+  categories?: string[];
   description?: string | null;
   location?: string | null;
   eventDate?: string | null;
+  dateLabel?: string | null; // กิจกรรมของ มข. ที่มาเป็นข้อความช่วงวันที่สำเร็จรูป
+  timeLabel?: string | null;
+  venueAddress?: string | null;
+  phone?: string | null;
+  mapUrl?: string | null;
+  organizer?: string | null;
+  cost?: string | null;
+  registerUrl?: string | null;
   externalLink?: string | null;
   capacity?: number | null;
   image?: string | null;
@@ -38,19 +49,25 @@ type EventDetail = {
 
 /* =========================================================
    EVENT DETAIL SCREEN
+   - กิจกรรมของแอป: ดึงจาก API / DB ด้วย id
+   - กิจกรรมของ มข. (source=kku): แสดงข้อมูลจาก params ก่อน
+     แล้วดึงข้อมูลเต็มจาก kku.ac.th มาเติม
 ========================================================= */
 
 export default function EventDetailScreen() {
   const router = useRouter();
 
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, source, title, dateLabel, venue, imageUrl, url } =
+    useLocalSearchParams<Record<string, string>>();
+
+  const isKku = source === "kku";
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   /* =======================================================
-     FETCH EVENT FROM API / DB
+     LOAD EVENT
   ======================================================= */
 
   useEffect(() => {
@@ -61,6 +78,69 @@ export default function EventDetailScreen() {
         setEvent(null);
         setError("Event ID is missing.");
         setLoading(false);
+        return;
+      }
+
+      // กิจกรรมจาก kku.ac.th
+      if (isKku) {
+        // ข้อมูลพื้นฐานจาก params ใช้เฉพาะตอนดึงข้อมูลเต็มไม่สำเร็จ
+        const basic: EventDetail = {
+          eventId: String(id),
+          title: title ?? "",
+          category: null,
+          categories: [],
+          location: venue || null,
+          dateLabel: dateLabel || null,
+          externalLink: url || null,
+          image: imageUrl || null,
+          description: null,
+          capacity: null,
+        };
+
+        // รอข้อมูลเต็มก่อนค่อยแสดง (id ในลิสต์มีคำนำหน้า "kku-")
+        try {
+          setLoading(true);
+          setError("");
+          setEvent(null);
+
+          const full = await fetchKkuEventById(
+            String(id).replace(/^kku-/, "")
+          );
+
+          if (!mounted) return;
+
+          setEvent({
+            eventId: String(id),
+            title: full.title || title || "",
+            category: null,
+            categories: full.categories ?? [],
+            description: full.description ?? null,
+            location: full.venue ?? (venue || null),
+            dateLabel: full.dateLabel || dateLabel || null,
+            timeLabel: full.timeLabel ?? null,
+            venueAddress: full.venueAddress ?? null,
+            phone: full.phone ?? null,
+            mapUrl: full.mapUrl ?? null,
+            organizer: full.organizer ?? null,
+            cost: full.cost ?? null,
+            registerUrl: full.registerUrl ?? null,
+            externalLink: full.url || url || null,
+            image: imageUrl || full.imageUrl || null,
+            capacity: null,
+          });
+        } catch (err) {
+          // ถ้าดึงข้อมูลเต็มไม่ได้ ใช้ข้อมูลพื้นฐานจาก params แทน
+          console.error("Failed to load full KKU event:", err);
+
+          if (!mounted) return;
+
+          setEvent(basic);
+        } finally {
+          if (mounted) {
+            setLoading(false);
+          }
+        }
+
         return;
       }
 
@@ -109,13 +189,15 @@ export default function EventDetailScreen() {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [id, isKku, title, dateLabel, venue, imageUrl, url]);
 
   /* =======================================================
      DATE / TIME
   ======================================================= */
 
   const formattedDate = useMemo(() => {
+    if (event?.dateLabel) return event.dateLabel;
+
     if (!event?.eventDate) return "Date not specified";
 
     const date = new Date(event.eventDate);
@@ -128,7 +210,7 @@ export default function EventDetailScreen() {
       month: "long",
       year: "numeric",
     });
-  }, [event?.eventDate]);
+  }, [event?.eventDate, event?.dateLabel]);
 
   const formattedTime = useMemo(() => {
     if (!event?.eventDate) return "Time not specified";
@@ -143,8 +225,6 @@ export default function EventDetailScreen() {
     });
   }, [event?.eventDate]);
 
-  
-
   /* =======================================================
      ADD TO CHECKLIST
   ======================================================= */
@@ -157,6 +237,20 @@ export default function EventDetailScreen() {
       `"${event.title}" has been added to your checklist.`
     );
   };
+
+  /* =======================================================
+     OPEN LINKS
+  ======================================================= */
+
+  const openLink = (link?: string | null) => {
+    if (!link) return;
+
+    Linking.openURL(link).catch((err) =>
+      console.error("Unable to open URL:", err)
+    );
+  };
+
+  const openSource = () => openLink(event?.externalLink);
 
   /* =======================================================
      LOADING
@@ -210,6 +304,8 @@ export default function EventDetailScreen() {
 
   /* =======================================================
      INFO ROWS
+     - แถว Time: กิจกรรมของแอปแสดงเสมอ / กิจกรรม มข. แสดงเมื่อมีเวลา
+     - แถวอื่น ๆ ซ่อนเมื่อไม่มีค่า
   ======================================================= */
 
   const infoRows = [
@@ -225,13 +321,59 @@ export default function EventDetailScreen() {
       label: "Date",
       value: formattedDate,
     },
-    {
+  ];
+
+  if (!event.dateLabel) {
+    infoRows.push({
       key: "time",
       icon: "time-outline",
       label: "Time",
       value: formattedTime,
-    },
-  ];
+    });
+  } else if (event.timeLabel) {
+    infoRows.push({
+      key: "time",
+      icon: "time-outline",
+      label: "Time",
+      value: event.timeLabel,
+    });
+  }
+
+  if (event.venueAddress) {
+    infoRows.push({
+      key: "address",
+      icon: "map-outline",
+      label: "Address",
+      value: event.venueAddress,
+    });
+  }
+
+  if (event.phone) {
+    infoRows.push({
+      key: "phone",
+      icon: "call-outline",
+      label: "Phone",
+      value: event.phone,
+    });
+  }
+
+  if (event.organizer) {
+    infoRows.push({
+      key: "organizer",
+      icon: "business-outline",
+      label: "Organizer",
+      value: event.organizer,
+    });
+  }
+
+  if (event.cost) {
+    infoRows.push({
+      key: "cost",
+      icon: "pricetag-outline",
+      label: "Cost",
+      value: event.cost,
+    });
+  }
 
   if (event.capacity !== null && event.capacity !== undefined) {
     infoRows.push({
@@ -241,6 +383,9 @@ export default function EventDetailScreen() {
       value: `${event.capacity} people`,
     });
   }
+
+  // ชิปหมวดหมู่: หมวดหลัก + หมวดจาก มข.
+  const chips = [event.category, ...(event.categories ?? [])].filter(Boolean);
 
   /* =======================================================
      MAIN
@@ -292,17 +437,19 @@ export default function EventDetailScreen() {
           <View style={styles.mainCard}>
             {/* CATEGORY */}
 
-            {!!event.category && (
+            {chips.length > 0 && (
               <View style={styles.chipRow}>
-                <View style={styles.categoryChip}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={13}
-                    color={COLORS.brick}
-                  />
+                {chips.map((chip, index) => (
+                  <View key={`${chip}-${index}`} style={styles.categoryChip}>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={13}
+                      color={COLORS.brick}
+                    />
 
-                  <Text style={styles.categoryChipText}>{event.category}</Text>
-                </View>
+                    <Text style={styles.categoryChipText}>{chip}</Text>
+                  </View>
+                ))}
               </View>
             )}
 
@@ -344,11 +491,49 @@ export default function EventDetailScreen() {
               ))}
             </View>
 
-            {/* DESCRIPTION */}
+            {/* DESCRIPTION (ซ่อนเมื่อไม่มีคำอธิบาย) */}
 
-            <Text style={styles.description}>
-              {event.description ?? "No description available."}
-            </Text>
+            {event.description?.trim() ? (
+              <Text style={styles.description}>{event.description}</Text>
+            ) : null}
+
+            {/* LINKS: MAP / REGISTER */}
+
+            {(event.mapUrl || event.registerUrl) && (
+              <View style={styles.linkRow}>
+                {!!event.mapUrl && (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.linkButton}
+                    onPress={() => openLink(event.mapUrl)}
+                  >
+                    <Ionicons
+                      name="navigate-outline"
+                      size={17}
+                      color={COLORS.brick}
+                    />
+
+                    <Text style={styles.linkButtonText}>Open in Maps</Text>
+                  </TouchableOpacity>
+                )}
+
+                {!!event.registerUrl && (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.linkButton}
+                    onPress={() => openLink(event.registerUrl)}
+                  >
+                    <Ionicons
+                      name="create-outline"
+                      size={17}
+                      color={COLORS.brick}
+                    />
+
+                    <Text style={styles.linkButtonText}>Register</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
 
             {/* ACTIONS */}
 
@@ -367,6 +552,20 @@ export default function EventDetailScreen() {
                 <Text style={styles.checklistButtonText}>Add to Checklist</Text>
               </TouchableOpacity>
 
+              {!!event.externalLink && (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.sourceButton}
+                  onPress={openSource}
+                  accessibilityLabel="Open source website"
+                >
+                  <Ionicons
+                    name="open-outline"
+                    size={20}
+                    color={COLORS.brick}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -593,6 +792,33 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
+  /* ---------- links (map / register) ---------- */
+
+  linkRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 14,
+  },
+
+  linkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    backgroundColor: COLORS.cream,
+  },
+
+  linkButtonText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.brick,
+  },
+
   /* ---------- actions ---------- */
 
   actionRow: {
@@ -616,6 +842,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
+
+  sourceButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    backgroundColor: COLORS.cream,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   /* ---------- loading ---------- */

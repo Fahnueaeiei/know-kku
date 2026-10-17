@@ -16,13 +16,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
-  Share,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { getEvents } from "../api/api";
+import { KKU_EVENTS_PAGE_URL, fetchKkuEvents } from "../api/events";
 import EventCard from "../components/EventCard";
 import { COLORS } from "../constants/appTheme";
 
@@ -33,21 +33,22 @@ import { COLORS } from "../constants/appTheme";
 type Event = {
   eventId: string | number;
   title: string;
-  category?: string;
+  categories: string[]; // กิจกรรมหนึ่งมีได้หลายหมวด
   description?: string;
   imageUrl?: string;
   date?: string;
-  startTime?: string;
-  endTime?: string;
   location?: string;
   sourceUrl?: string;
   favorite?: boolean;
+  source?: "app" | "kku";
 };
 
 const ALL = "All Events";
+const KKU_LIMIT = 20;
 
 /* =========================================================
    EVENT SCREEN
+   รวมกิจกรรมของแอป (DB) + ปฏิทินกิจกรรม มข. ไว้ในลิสต์เดียวกัน
 ========================================================= */
 
 export default function EventScreen() {
@@ -62,8 +63,9 @@ export default function EventScreen() {
 
   /* =======================================================
      FETCH EVENTS
-     - ดึงลงเพื่อรีเฟรชได้
-     - คงสถานะ favorite ในเครื่องไว้ตอนรีเฟรช
+     - ดึงจาก DB ของแอป + kku.ac.th พร้อมกัน
+     - ฝั่งใดฝั่งหนึ่งล่ม อีกฝั่งยังแสดงได้
+     - ดึงลงเพื่อรีเฟรชได้ / คงสถานะ favorite ในเครื่องไว้
   ======================================================= */
 
   const loadEvents = useCallback(async (isRefresh = false) => {
@@ -76,7 +78,46 @@ export default function EventScreen() {
 
       setError("");
 
-      const data = await getEvents();
+      const [appRes, kkuRes] = await Promise.allSettled([
+        getEvents(),
+        fetchKkuEvents(KKU_LIMIT),
+      ]);
+
+      if (appRes.status === "rejected" && kkuRes.status === "rejected") {
+        throw appRes.reason;
+      }
+
+      const appEvents: Event[] =
+        appRes.status === "fulfilled"
+          ? appRes.value.map((event) => ({
+              ...event,
+              source: "app",
+              categories: event.category ? [event.category] : [],
+              imageUrl: event.imageUrl ?? undefined,
+
+              date: new Date(event.eventDate).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }),
+
+              sourceUrl: event.externalLink ?? undefined,
+            }))
+          : [];
+
+      const kkuEvents: Event[] =
+        kkuRes.status === "fulfilled"
+          ? kkuRes.value.map((ev) => ({
+              eventId: `kku-${ev.id}`,
+              source: "kku",
+              title: ev.title,
+              categories: ev.categories ?? [],
+              imageUrl: ev.imageUrl ?? undefined,
+              date: ev.dateLabel,
+              location: ev.venue ?? undefined,
+              sourceUrl: ev.url,
+            }))
+          : [];
 
       setEvents((previous) => {
         const localFavorites = new Set(
@@ -85,25 +126,9 @@ export default function EventScreen() {
             .map((e) => String(e.eventId))
         );
 
-        return data.map((event) => ({
-          ...event,
-
-          imageUrl: event.imageUrl ?? undefined,
-
-          date: new Date(event.eventDate).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-
-          startTime: new Date(event.eventDate).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-
-          sourceUrl: event.externalLink ?? undefined,
-
-          favorite: localFavorites.has(String(event.eventId)),
+        return [...appEvents, ...kkuEvents].map((e) => ({
+          ...e,
+          favorite: localFavorites.has(String(e.eventId)),
         }));
       });
     } catch (err) {
@@ -121,27 +146,25 @@ export default function EventScreen() {
 
   /* =======================================================
      CATEGORIES
+     นับแต่ละหมวดจากทุกกิจกรรม (กิจกรรมหนึ่งนับได้หลายหมวด)
   ======================================================= */
-
-  const categories = useMemo(() => {
-    const backendCategories = Array.from(
-      new Set(events.map((event) => event.category).filter(Boolean))
-    );
-
-    return [ALL, ...backendCategories];
-  }, [events]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
 
     events.forEach((event) => {
-      if (event.category) {
-        counts[event.category] = (counts[event.category] ?? 0) + 1;
-      }
+      new Set(event.categories).forEach((category) => {
+        counts[category] = (counts[category] ?? 0) + 1;
+      });
     });
 
     return counts;
   }, [events]);
+
+  const categories = useMemo(
+    () => [ALL, ...Object.keys(categoryCounts)],
+    [categoryCounts]
+  );
 
   /* =======================================================
      FILTER EVENTS
@@ -156,8 +179,9 @@ export default function EventScreen() {
       if (activeCategory === "Favorites") {
         matchesCategory = event.favorite === true;
       } else if (activeCategory !== ALL) {
-        matchesCategory =
-          event.category?.toLowerCase() === activeCategory.toLowerCase();
+        matchesCategory = event.categories.some(
+          (category) => category.toLowerCase() === activeCategory.toLowerCase()
+        );
       }
 
       const matchesSearch =
@@ -165,7 +189,9 @@ export default function EventScreen() {
         event.title?.toLowerCase().includes(keyword) ||
         event.description?.toLowerCase().includes(keyword) ||
         event.location?.toLowerCase().includes(keyword) ||
-        event.category?.toLowerCase().includes(keyword);
+        event.categories.some((category) =>
+          category.toLowerCase().includes(keyword)
+        );
 
       return matchesCategory && matchesSearch;
     });
@@ -202,45 +228,29 @@ export default function EventScreen() {
   };
 
   /* =======================================================
-     JOIN EVENT — เปิดเว็บไซต์ต้นทาง
+     OPEN EVENT DETAIL
+     - กิจกรรมของแอป: ส่ง id ไปให้หน้ารายละเอียดดึงจาก DB
+     - กิจกรรมของ มข.: ส่งข้อมูลผ่าน params (หน้ารายละเอียดจะดึงข้อมูลเต็มเอง)
   ======================================================= */
 
-  const joinEvent = async (event: Event) => {
-    if (!event.sourceUrl) {
-      console.warn("Event source URL is missing.");
+  const openEvent = (item: Event) => {
+    if (item.source === "kku") {
+      router.push({
+        pathname: "/event/[id]" as any,
+        params: {
+          id: String(item.eventId),
+          source: "kku",
+          title: item.title,
+          dateLabel: item.date ?? "",
+          venue: item.location ?? "",
+          imageUrl: item.imageUrl ?? "",
+          url: item.sourceUrl ?? "",
+        },
+      });
       return;
     }
 
-    try {
-      await Linking.openURL(event.sourceUrl);
-    } catch (err) {
-      console.error("Unable to open event URL:", err);
-    }
-  };
-
-  /* =======================================================
-     SHARE EVENT
-  ======================================================= */
-
-  const shareEvent = async (event: Event) => {
-    try {
-      await Share.share({
-        title: event.title,
-
-        message: `
-${event.title}
-
-📅 ${event.date ?? ""}
-⏰ ${event.startTime ?? ""}${event.endTime ? ` - ${event.endTime}` : ""}
-
-📍 ${event.location ?? ""}
-
-${event.sourceUrl ?? ""}
-        `.trim(),
-      });
-    } catch (err) {
-      console.error("Share event error:", err);
-    }
+    router.push(`/event/${item.eventId}`);
   };
 
   /* =======================================================
@@ -408,12 +418,8 @@ ${event.sourceUrl ?? ""}
         renderItem={({ item }) => (
           <EventCard
             event={item}
-            onPress={() => {
-              router.push(`/event/${item.eventId}`);
-            }}
+            onPress={() => openEvent(item)}
             onToggleFavorite={toggleFavorite}
-            onShare={shareEvent}
-            onJoin={joinEvent}
           />
         )}
         ListEmptyComponent={
@@ -465,7 +471,20 @@ ${event.sourceUrl ?? ""}
             </View>
           )
         }
-        ListFooterComponent={<View style={styles.bottomSpace} />}
+        ListFooterComponent={
+          <View>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.allButton}
+              onPress={() => Linking.openURL(KKU_EVENTS_PAGE_URL)}
+            >
+              <Text style={styles.allButtonText}>ดูข่าวทั้งหมดที่ kku.ac.th</Text>
+              <Ionicons name="open-outline" size={17} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.bottomSpace} />
+          </View>
+        }
       />
     </View>
   );
@@ -682,6 +701,25 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: COLORS.inkSoft,
     textAlign: "center",
+  },
+
+  /* ---------- footer ---------- */
+
+  allButton: {
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: COLORS.brick,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+
+  allButtonText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 
   bottomSpace: {

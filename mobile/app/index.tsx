@@ -40,11 +40,6 @@ import {
   GetToken,
   fetchTasks,
 } from '../api/api';
-import {
-  KKU_EVENTS_PAGE_URL,
-  KkuEvent,
-  fetchKkuEvents,
-} from '../api/events';
 
 /* =========================================================
    DESIGN TOKENS
@@ -80,11 +75,9 @@ const CARD_COLORS = ['#F7D6E4', '#B5EFE3', '#E3DBFA', '#FDE2C6', '#D2E7FB'];
 ========================================================= */
 
 const SCREEN_PADDING = 16;
-const HERO_HEIGHT = 270;
 const AUTO_ADVANCE_MS = 6000; // เลื่อน Did You Know อัตโนมัติทุกกี่ ms
 const UPCOMING_WINDOW_DAYS = 3; // "ใกล้ถึงกำหนด" = เลยกำหนด หรือ ภายในกี่วันข้างหน้า
 const MAX_REMINDERS = 3; // แสดง Checklist บนหน้า Home สูงสุดกี่รายการ
-const NEWS_LIMIT = 6; // 2 คอลัมน์ x 3 แถว
 
 /* =========================================================
    TYPES
@@ -246,10 +239,6 @@ export default function HomeScreen() {
   const [tasks, setTasks] = useState<ChecklistTask[] | null>(null);
   const [checklistError, setChecklistError] = useState(false);
 
-  // ข่าวสาร/กิจกรรม (kku.ac.th/th/events)
-  const [events, setEvents] = useState<KkuEvent[] | null>(null);
-  const [eventsError, setEventsError] = useState(false);
-
   /* ---------- LOADERS ---------- */
 
   const loadFacts = useCallback(async () => {
@@ -292,24 +281,9 @@ export default function HomeScreen() {
     }
   }, [getToken]);
 
-
-const loadEvents = useCallback(async () => {
-  try {
-    setEventsError(false);
-
-    const result = await fetchKkuEvents(NEWS_LIMIT);
-    setEvents(result);
-  } catch (err) {
-    console.error('loadEvents error:', err);
-    setEventsError(true);
-  }
-}, []);
-
-
   useEffect(() => {
     loadFacts();
-    loadEvents();
-  }, [loadFacts, loadEvents]);
+  }, [loadFacts]);
 
   // โหลด Checklist ใหม่ทุกครั้งที่กลับมาหน้า Home
   // (ติ๊กเสร็จ/แก้วันที่ในหน้า Checklist แล้วกลับมา ข้อมูลจะตรงกันทันที)
@@ -324,7 +298,7 @@ const loadEvents = useCallback(async () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadFacts(), loadChecklist(), loadEvents()]);
+    await Promise.all([loadFacts(), loadChecklist()]);
     setRefreshing(false);
   };
 
@@ -411,13 +385,6 @@ const loadEvents = useCallback(async () => {
             error={checklistError}
             onRetry={loadChecklist}
             onOpen={openChecklist}
-          />
-
-          {/* ข่าวสารและกิจกรรม */}
-          <EventsSection
-            events={events}
-            error={eventsError}
-            onRetry={loadEvents}
           />
 
           <View style={styles.bottomSpace} />
@@ -828,160 +795,6 @@ function ChecklistReminder({
 }
 
 /* =========================================================
-   ข่าวสารและกิจกรรม (จาก https://www.kku.ac.th/th/events/)
-   กรอบใหญ่ → หัวข้อ → กริด 2 คอลัมน์ x 3 แถว → ปุ่ม "ดูข่าวทั้งหมด"
-========================================================= */
-
-function EventsSection({
-  events,
-  error,
-  onRetry,
-}: {
-  events: KkuEvent[] | null;
-  error: boolean;
-  onRetry: () => void;
-}) {
-
-  const rows: KkuEvent[][] = [];
-
-  (events ?? []).forEach((ev, i) => {
-    if (i % 2 === 0) rows.push([ev]);
-    else rows[rows.length - 1].push(ev);
-  });
-
-
-  return (
-    <View style={styles.eventsFrame}>
-      <View style={styles.eventsHeader}>
-        <View style={styles.reminderHeaderIcon}>
-          <Ionicons name="newspaper-outline" size={20} color={COLORS.brick} />
-        </View>
-        <View style={styles.reminderHeaderText}>
-          <Text style={styles.panelTitle}>ข่าวสารและกิจกรรม</Text>
-          <Text style={styles.panelSubtitle}>
-            จากปฏิทินกิจกรรม มหาวิทยาลัยขอนแก่น
-          </Text>
-        </View>
-      </View>
-
-      {/* กำลังโหลด → โครงการ์ด */}
-      {events === null && !error && (
-        <>
-          {[0, 1, 2].map((r) => (
-            <View key={r} style={styles.eventRow}>
-              <View style={styles.eventSkeleton} />
-              <View style={styles.eventSkeleton} />
-            </View>
-          ))}
-        </>
-      )}
-
-      {/* โหลดไม่สำเร็จ */}
-      {error && events === null && (
-        <TouchableOpacity
-          style={styles.eventsMessage}
-          activeOpacity={0.7}
-          onPress={onRetry}
-        >
-          <Ionicons name="refresh" size={22} color={COLORS.textLight} />
-          <Text style={styles.messageText}>
-            โหลดกิจกรรมไม่สำเร็จ แตะเพื่อลองใหม่
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {/* ไม่มีกิจกรรม */}
-      {events !== null && events.length === 0 && (
-        <View style={styles.eventsMessage}>
-          <Ionicons name="calendar-outline" size={22} color={COLORS.textLight} />
-          <Text style={styles.messageText}>
-            ยังไม่มีกิจกรรมที่กำลังจะมาถึง
-          </Text>
-        </View>
-      )}
-
-      {/* กริดกิจกรรม */}
-      {rows.map((row, r) => (
-        <View key={r} style={styles.eventRow}>
-          {row.map((ev, c) => (
-            <EventCard
-              key={ev.id}
-              event={ev}
-              color={
-                CARD_COLORS[(r * 3 + c) % CARD_COLORS.length]
-              }
-              onPress={() => openExternalLink(ev.url)}
-            />
-          ))}
-
-          {row.length < 2 &&
-            Array.from({ length: 3 - row.length }).map((_, i) => (
-              <View key={`spacer-${i}`} style={styles.eventSpacer} />
-            ))}
-        </View>
-      ))}
-
-      <TouchableOpacity
-        activeOpacity={0.85}
-        style={styles.allButton}
-        onPress={() => openExternalLink(KKU_EVENTS_PAGE_URL)}
-      >
-        <Text style={styles.allButtonText}>ดูข่าวทั้งหมด</Text>
-        <Ionicons name="open-outline" size={17} color="#FFFFFF" />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function EventCard({
-  event,
-  color,
-  onPress,
-}: {
-  event: KkuEvent;
-  color: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      style={[styles.eventCard, { backgroundColor: color }]}
-      onPress={onPress}
-    >
-      {event.imageUrl ? (
-        <Image source={{ uri: event.imageUrl }} style={styles.eventImage} />
-      ) : (
-        <View style={[styles.eventImage, styles.eventImagePlaceholder]}>
-          <Ionicons name="calendar-outline" size={30} color={COLORS.brick} />
-        </View>
-      )}
-
-      <View style={styles.eventBody}>
-        <View style={styles.eventDateChip}>
-          <Ionicons name="calendar-outline" size={11} color={COLORS.brick} />
-          <Text style={styles.eventDateText} numberOfLines={1}>
-            {event.dateLabel}
-          </Text>
-        </View>
-
-        <Text style={styles.eventTitle} numberOfLines={2}>
-          {event.title}
-        </Text>
-
-        {!!event.venue && (
-          <View style={styles.eventVenueRow}>
-            <Ionicons name="location-outline" size={12} color={COLORS.inkSoft} />
-            <Text style={styles.eventVenueText} numberOfLines={1}>
-              {event.venue}
-            </Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-/* =========================================================
    STYLES
 ========================================================= */
 
@@ -1011,69 +824,69 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }],
   },
 
-/* SEARCH */
+  /* SEARCH */
 
-searchContainer: {
-  height: 46,
-  width: '100%',
-  borderRadius: 23,
-  backgroundColor: COLORS.white,
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingHorizontal: 16,
-  marginBottom: 10,
-  borderWidth: 0.5,
-  borderColor: '#F0EBE8',
-  shadowColor: '#AFA7A2',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.06,
-  shadowRadius: 5,
-  elevation: 1,
-},
+  searchContainer: {
+    height: 46,
+    width: '100%',
+    borderRadius: 23,
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    borderWidth: 0.5,
+    borderColor: '#F0EBE8',
+    shadowColor: '#AFA7A2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
+    elevation: 1,
+  },
 
-searchInput: {
-  flex: 1,
-  height: 46,
-  marginLeft: 8,
-  paddingVertical: 0,
-  fontSize: 14,
-  color: COLORS.ink,
-},
+  searchInput: {
+    flex: 1,
+    height: 46,
+    marginLeft: 8,
+    paddingVertical: 0,
+    fontSize: 14,
+    color: COLORS.ink,
+  },
 
-clearButton: {
-  width: 26,
-  height: 26,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
+  clearButton: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
-/* HERO / DID YOU KNOW */
+  /* HERO / DID YOU KNOW */
 
-heroShadow: {
-  width: '100%',
-  marginTop: 0,
-  marginBottom: 16,
-  borderRadius: 24,
-  backgroundColor: COLORS.orange,
-  shadowColor: COLORS.brick,
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.18,
-  shadowRadius: 10,
-  elevation: 4,
-},
+  heroShadow: {
+    width: '100%',
+    marginTop: 0,
+    marginBottom: 16,
+    borderRadius: 24,
+    backgroundColor: COLORS.orange,
+    shadowColor: COLORS.brick,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
+  },
 
-heroCard: {
-  width: '100%',
-  height: 195,
-  borderRadius: 15,
-  overflow: 'hidden',
-  backgroundColor: COLORS.orange,
-},
+  heroCard: {
+    width: '100%',
+    height: 195,
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: COLORS.orange,
+  },
 
-heroSlide: {
-  height: 195,
-  backgroundColor: COLORS.orange,
-},
+  heroSlide: {
+    height: 195,
+    backgroundColor: COLORS.orange,
+  },
 
   heroImage: {
     ...StyleSheet.absoluteFill,
@@ -1082,15 +895,15 @@ heroSlide: {
     resizeMode: 'cover',
   },
 
-heroDecorLarge: {
-  position: 'absolute',
-  width: 210,
-  height: 210,
-  borderRadius: 105,
-  right: -60,
-  top: -70,
-  backgroundColor: 'rgba(255,255,255,0.10)',
-},
+  heroDecorLarge: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    right: -60,
+    top: -70,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
 
   heroDecorSmall: {
     position: 'absolute',
@@ -1267,307 +1080,147 @@ heroDecorLarge: {
     fontWeight: '600',
   },
 
-/* CHECKLIST REMINDER */
+  /* CHECKLIST REMINDER */
 
-reminderPanel: {
-  backgroundColor: COLORS.cream,
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: COLORS.creamBorder,
-  padding: 12,
-  marginBottom: 16,
-},
-
-reminderHeader: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginBottom: 10,
-},
-
-reminderHeaderIcon: {
-  width: 34,
-  height: 34,
-  borderRadius: 17,
-  backgroundColor: '#FBD9C2',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: 8,
-},
-
-reminderHeaderText: {
-  flex: 1,
-  paddingRight: 4,
-},
-
-panelTitle: {
-  fontSize: 15,
-  fontWeight: '800',
-  color: COLORS.ink,
-},
-
-panelSubtitle: {
-  marginTop: 2,
-  fontSize: 11,
-  color: COLORS.inkSoft,
-},
-
-seeAll: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 1,
-},
-
-seeAllText: {
-  fontSize: 11,
-  fontWeight: '700',
-  color: COLORS.orange,
-},
-
-reminderMessage: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 12,
-  gap: 4,
-},
-
-messageTitle: {
-  fontSize: 13,
-  fontWeight: '700',
-  color: COLORS.ink,
-},
-
-messageText: {
-  fontSize: 11.5,
-  color: COLORS.inkSoft,
-  textAlign: 'center',
-},
-
-reminderRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderRadius: 14,
-  paddingVertical: 9,
-  paddingLeft: 9,
-  paddingRight: 8,
-  marginBottom: 7,
-},
-
-urgencyIcon: {
-  width: 30,
-  height: 30,
-  borderRadius: 15,
-  backgroundColor: 'rgba(255,255,255,0.7)',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: 8,
-},
-
-reminderRowText: {
-  flex: 1,
-  minWidth: 0,
-  paddingRight: 5,
-},
-
-reminderItemTitle: {
-  fontSize: 12.5,
-  lineHeight: 17,
-  fontWeight: '700',
-  color: COLORS.ink,
-},
-
-reminderMeta: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: 5,
-  marginTop: 4,
-},
-
-dueChip: {
-  backgroundColor: 'rgba(255,255,255,0.75)',
-  borderRadius: 8,
-  paddingHorizontal: 6,
-  paddingVertical: 2,
-},
-
-dueChipText: {
-  fontSize: 10.5,
-  fontWeight: '700',
-},
-
-reminderTaskTitle: {
-  flex: 1,
-  minWidth: 0,
-  fontSize: 10.5,
-  color: COLORS.inkSoft,
-},
-
-reminderMore: {
-  textAlign: 'center',
-  fontSize: 11.5,
-  fontWeight: '700',
-  color: COLORS.brick,
-  paddingTop: 3,
-},
-
-  /* EVENTS (กรอบใหญ่) */
-
-eventsGrid: {
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  justifyContent: 'space-between',
-  gap: 10,
-},
-
-eventCard: {
-  flex: 1,
-  minWidth: 0,
-  backgroundColor: '#FFFFFF',
-  borderRadius: 14,
-  overflow: 'hidden',
-  borderWidth: 1,
-  borderColor: '#EFE8E4',
-},
-
-eventImage: {
-  width: '100%',
-  height: 105,
-  backgroundColor: '#F3E9E1',
-},
-
-eventContent: {
-  padding: 9,
-},
-
-eventTitle: {
-  fontSize: 12,
-  lineHeight: 17,
-  fontWeight: '700',
-  color: '#1A1A1A',
-},
-
-eventDate: {
-  fontSize: 10,
-  lineHeight: 14,
-  color: '#E8692B',
-  marginTop: 4,
-},
-
-eventVenue: {
-  fontSize: 10,
-  lineHeight: 14,
-  color: '#8E8985',
-  marginTop: 3,
-},
-
-  eventsFrame: {
+  reminderPanel: {
     backgroundColor: COLORS.cream,
-    borderRadius: 28,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: COLORS.creamBorder,
-    padding: 14,
-    shadowColor: '#AFA7A2',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: 12,
+    marginBottom: 16,
   },
 
-  eventsHeader: {
+  reminderHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
 
- eventRow: {
-  flexDirection: 'row',
-  alignItems: 'stretch',
-  justifyContent: 'space-between',
-  gap: 10,
-  marginBottom: 10,
-  width: '100%',
-},
-
-eventSpacer: {
-  flex: 1,
-  minWidth: 0,
-},
-
-eventSkeleton: {
-  flex: 1,
-  minWidth: 0,
-  height: 155,
-  borderRadius: 14,
-  backgroundColor: COLORS.skeleton,
-},
-
-  eventsMessage: {
+  reminderHeaderIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FBD9C2',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 26,
-    gap: 8,
+    marginRight: 8,
   },
 
-eventImagePlaceholder: {
-  backgroundColor: 'rgba(255,255,255,0.55)',
-  alignItems: 'center',
-  justifyContent: 'center',
-},
+  reminderHeaderText: {
+    flex: 1,
+    paddingRight: 4,
+  },
 
-eventBody: {
-  padding: 9,
-  gap: 6,
-},
+  panelTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.ink,
+  },
 
-eventDateChip: {
-  alignSelf: 'flex-start',
-  flexDirection: 'row',
-  alignItems: 'center',
-  flexShrink: 1,
-  gap: 4,
-  backgroundColor: 'rgba(255,255,255,0.7)',
-  borderRadius: 9,
-  paddingHorizontal: 7,
-  paddingVertical: 3,
-},
+  panelSubtitle: {
+    marginTop: 2,
+    fontSize: 11,
+    color: COLORS.inkSoft,
+  },
 
-eventDateText: {
-  flexShrink: 1,
-  fontSize: 10,
-  lineHeight: 14,
-  fontWeight: '700',
-  color: COLORS.brick,
-},
-
-eventVenueRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-  marginTop: 'auto',
-  paddingTop: 2,
-},
-
-eventVenueText: {
-  flex: 1,
-  fontSize: 11,
-  color: COLORS.inkSoft,
-},
-
-  allButton: {
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: COLORS.brick,
+  seeAll: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 1,
+  },
+
+  seeAllText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.orange,
+  },
+
+  reminderMessage: {
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    paddingVertical: 12,
+    gap: 4,
+  },
+
+  messageTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+
+  messageText: {
+    fontSize: 11.5,
+    color: COLORS.inkSoft,
+    textAlign: 'center',
+  },
+
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    paddingVertical: 9,
+    paddingLeft: 9,
+    paddingRight: 8,
+    marginBottom: 7,
+  },
+
+  urgencyIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+
+  reminderRowText: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 5,
+  },
+
+  reminderItemTitle: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+
+  reminderMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
     marginTop: 4,
   },
 
-  allButtonText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
+  dueChip: {
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+
+  dueChipText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+
+  reminderTaskTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 10.5,
+    color: COLORS.inkSoft,
+  },
+
+  reminderMore: {
+    textAlign: 'center',
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: COLORS.brick,
+    paddingTop: 3,
   },
 
   /* BOTTOM */

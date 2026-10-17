@@ -2,23 +2,25 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/appTheme';
 
 /**
  * EventCard
  * Card used in the "Upcoming Events" list on the Event screen.
  *
  * props:
- *  - event: { eventId, title, date, startTime, location, imageUrl, trending, favorite, joined }
+ *  - event: { eventId, title, date, location, imageUrl, sourceUrl, trending, favorite }
  *  - onPress: (event) => void          // e.g. navigate to detail
  *  - onToggleFavorite: (event) => void
- *  - onToggleJoin: (event) => void
  */
-export default function EventCard({ event, onPress, onToggleFavorite, onToggleJoin }) {
+export default function EventCard({ event, onPress, onToggleFavorite }) {
+  // แชร์ชื่อ + ลิงก์ (แอปแชทส่วนใหญ่จะแสดงพรีวิวจากลิงก์ให้เอง)
+  // ถ้าไม่มีลิงก์ แชร์ชื่อและวันที่แทน
   const shareEvent = () => {
-    Share.share({
-      message: `${event.title} — ${event.date} @ ${event.location}`,
-    });
+    const message = event.sourceUrl
+      ? `${event.title}\n${event.sourceUrl}`
+      : [event.title, event.date].filter(Boolean).join(' — ');
+
+    Share.share({ message });
   };
 
   return (
@@ -51,40 +53,37 @@ export default function EventCard({ event, onPress, onToggleFavorite, onToggleJo
 
       <View style={styles.infoRow}>
         <Text style={styles.title}>{event.title}</Text>
-        <TouchableOpacity
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          onPress={() => onToggleFavorite?.(event)}
-        >
-          <Ionicons
-            name={event.favorite ? 'heart' : 'heart-outline'}
-            size={22}
-            color={event.favorite ? '#E63946' : '#333'}
-          />
-        </TouchableOpacity>
+
+        <View style={styles.iconActions}>
+          <TouchableOpacity
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={shareEvent}
+            accessibilityLabel="Share event"
+          >
+            <Ionicons name="share-social-outline" size={22} color="#333" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => onToggleFavorite?.(event)}
+            accessibilityLabel="Toggle favorite"
+          >
+            <Ionicons
+              name={event.favorite ? 'heart' : 'heart-outline'}
+              size={22}
+              color={event.favorite ? '#E63946' : '#333'}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.metaRow}>
         <Ionicons name="calendar-outline" size={14} color="#666" />
         <Text style={styles.metaText}>{event.date}</Text>
       </View>
-      <View style={styles.metaRow}>
+      <View style={[styles.metaRow, styles.lastMetaRow]}>
         <Ionicons name="location-outline" size={14} color="#666" />
         <Text style={styles.metaText}>{event.location}</Text>
-      </View>
-
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={[styles.joinButton, event.joined && styles.joinButtonActive]}
-          onPress={() => {}}
-        >
-          <Text style={styles.joinButtonText}>
-            {event.joined ? 'Joined' : 'Join Event'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.shareButton} onPress={shareEvent}>
-          <Ionicons name="share-social-outline" size={18} color="#333" />
-        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -141,6 +140,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  iconActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -148,39 +152,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 6,
   },
+  lastMetaRow: {
+    paddingBottom: 14,
+  },
   metaText: {
     fontSize: 12,
     color: '#666',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  joinButton: {
-    flex: 1,
-    backgroundColor: COLORS.brick,
-    borderRadius: 24,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  joinButtonActive: {
-    backgroundColor: '#C9C9C9',
-  },
-  joinButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  shareButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F2F0EC',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

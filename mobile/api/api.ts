@@ -177,6 +177,32 @@ async function uploadForm<T>(
 }
 
 /* =========================================================
+   KKU EVENTS
+   ดึงกิจกรรมจากเว็บไซต์ KKU ผ่าน Backend Proxy
+========================================================= */
+
+export type KkuEvent = {
+  id: string;
+  title: string;
+  excerpt: string;
+  dateLabel: string;
+  venue?: string;
+  imageUrl?: string;
+  url: string;
+  startTs: number;
+};
+
+export async function getKkuEvents(
+  limit = 6
+): Promise<KkuEvent[]> {
+  const result = await request<{ events: KkuEvent[] }>(
+    `/kku-events?limit=${limit}`
+  );
+
+  return result.events;
+}
+
+/* =========================================================
    PLACES / EVENTS (ของเดิม)
 ========================================================= */
 
