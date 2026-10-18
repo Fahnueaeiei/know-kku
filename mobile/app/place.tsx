@@ -23,6 +23,7 @@ import { useRouter } from "expo-router";
 import { getPlaces } from "../api/api";
 import PlaceCard from "../components/PlaceCard";
 import { COLORS, getCategoryMeta } from "../constants/appTheme";
+import { searchPlaces } from "../utils/searchPlaces";
 
 /* =========================================================
    TYPES
@@ -168,38 +169,27 @@ export default function PlaceScreen() {
 
   /* =======================================================
      FILTER PLACES
+     -----------------------------------------------
+     1) กรองตามหมวดก่อน
+     2) ค้นหาด้วย searchPlaces (รองรับ sc09 / sc9 / ตึกวิทยวิภาส ฯลฯ)
+        ช่องค้นหาว่าง = คืนทั้งหมดตามลำดับเดิม
   ======================================================= */
 
   const filteredPlaces = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    return places.filter((place) => {
-      /* -------------------------
-         CATEGORY
-      ------------------------- */
-
-      let matchesCategory = true;
-
+    const byCategory = places.filter((place) => {
       if (activeCategory === "Favorites") {
-        matchesCategory = place.favorite === true;
-      } else if (activeCategory !== "All") {
-        matchesCategory =
-          place.category?.toLowerCase() ===
-          activeCategory.toLowerCase();
+        return place.favorite === true;
       }
 
-      /* -------------------------
-         SEARCH
-      ------------------------- */
+      if (activeCategory === "All") return true;
 
-      const matchesSearch =
-        !keyword ||
-        place.name?.toLowerCase().includes(keyword) ||
-        place.description?.toLowerCase().includes(keyword) ||
-        place.category?.toLowerCase().includes(keyword);
-
-      return matchesCategory && matchesSearch;
+      return (
+        place.category?.toLowerCase() ===
+        activeCategory.toLowerCase()
+      );
     });
+
+    return searchPlaces(byCategory, search);
   }, [
     places,
     activeCategory,
