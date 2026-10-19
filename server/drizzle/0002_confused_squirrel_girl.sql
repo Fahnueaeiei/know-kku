@@ -1,0 +1,1 @@
+ALTER TABLE "news" ALTER COLUMN "external_link" SET DATA TYPE varchar(2000);

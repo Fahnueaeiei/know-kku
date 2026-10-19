@@ -853,6 +853,17 @@ app.get(
   "/news",
   async (req, res) => {
     try {
+      const requestedType = req.query.type;
+      if (
+        requestedType !== undefined &&
+        requestedType !== "news" &&
+        requestedType !== "trivia"
+      ) {
+        return res.status(400).json({
+          error: "type must be news or trivia",
+        });
+      }
+
       const isFeaturedQuery =
         req.query.featured ===
         "true";
@@ -871,6 +882,9 @@ app.get(
             .from(news)
             .where(
               and(
+                requestedType
+                  ? eq(news.contentType, requestedType)
+                  : undefined,
                 eq(
                   news.isFeatured,
                   true
@@ -886,20 +900,32 @@ app.get(
                 news.publishedDate
               )
             );
+        } else if (requestedType) {
+          result = await db
+            .select()
+            .from(news)
+            .where(eq(news.contentType, requestedType))
+            .orderBy(desc(news.publishedDate));
       } else {
         result =
           await db
             .select()
             .from(news)
             .where(
-              or(
+              and(
                 eq(
-                  news.isFeatured,
-                  false
+                  news.contentType,
+                    "news"
                 ),
-                lte(
-                  news.featuredUntil,
-                  now
+                or(
+                  eq(
+                    news.isFeatured,
+                    false
+                  ),
+                  lte(
+                    news.featuredUntil,
+                    now
+                  )
                 )
               )
             )
@@ -931,9 +957,12 @@ app.post(
         category,
         description,
         icon,
+        contentType,
         publishedDate,
         externalLink,
         imageUrl,
+        bg,
+        accent,
         isFeatured,
         featuredUntil,
       } = req.body;
@@ -947,15 +976,24 @@ app.post(
           });
       }
 
+      if (contentType && contentType !== "news" && contentType !== "trivia") {
+        return res.status(400).json({
+          error: "contentType must be news or trivia",
+        });
+      }
+
       const [
         newNews,
       ] = await db
         .insert(news)
         .values({
           title,
+          contentType: contentType ?? "news",
           category,
           description,
           icon,
+          bg,
+          accent,
           publishedDate,
           externalLink,
           imageUrl,
@@ -1167,7 +1205,12 @@ async function getDemoTasks(userId: number) {
 
   return tasks.map((task) => ({
     ...task,
-    items: items.filter((item) => item.taskId === task.taskId),
+    items: items
+      .filter((item) => item.taskId === task.taskId)
+      .map((item) => ({
+        ...item,
+        dueTime: item.dueTime?.slice(0, 5) ?? null,
+      })),
   }));
 }
 
@@ -1178,7 +1221,7 @@ function itemValues(item: DemoItemInput) {
     completed: item.completed ?? false,
     completedAt: item.completed ? new Date() : null,
     dueDate: item.dueDate || null,
-    dueTime: item.dueTime || null,
+    dueTime: item.dueDate ? item.dueTime || null : null,
     note: item.note ?? null,
     url: item.url ?? null,
     location: item.location ?? null,

@@ -43,6 +43,11 @@ export const busLineEnum = pgEnum(
   ["green", "red", "blue", "yellow"]
 );
 
+export const newsTypeEnum = pgEnum(
+  "news_type",
+  ["news", "trivia"]
+);
+
 // ---------- User ----------
 
 export const users = pgTable("users", {
@@ -236,6 +241,10 @@ export const placeReviews = pgTable(
 export const news = pgTable("news", {
   newsId: serial("news_id").primaryKey(),
 
+  contentType: newsTypeEnum("content_type")
+    .notNull()
+    .default("news"),
+
   title: varchar("title", {
     length: 255,
   }).notNull(),
@@ -250,10 +259,18 @@ export const news = pgTable("news", {
     length: 100,
   }),
 
+  bg: varchar("bg", {
+    length: 20,
+  }),
+
+  accent: varchar("accent", {
+    length: 20,
+  }),
+
   publishedDate: date("published_date"),
 
   externalLink: varchar("external_link", {
-    length: 500,
+    length: 2000,
   }),
 
   imageUrl: varchar("image_url", {
