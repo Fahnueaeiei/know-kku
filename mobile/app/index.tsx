@@ -29,7 +29,6 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { KKU_TRIVIA } from '../data/trivia';
 
 import ChatbotButton from '../components/ChatbotButton';
 import ChatbotSheet from '../components/ChatbotSheet';
@@ -40,6 +39,7 @@ import {
   ChecklistTask,
   GetToken,
   fetchTasks,
+  getTrivia,
 } from '../api/api';
 
 /* =========================================================
@@ -246,6 +246,8 @@ export default function HomeScreen() {
   // Did You Know (backend: GET /news?featured=true)
   const [facts, setFacts] = useState<HomeFact[]>([]);
   const [factsStatus, setFactsStatus] = useState<LoadStatus>('loading');
+  const [trivia, setTrivia] = useState<TriviaItem[]>([]);
+  const [triviaStatus, setTriviaStatus] = useState<LoadStatus>('loading');
 
   // Checklist (backend เดียวกับหน้า Checklist)
   const [tasks, setTasks] = useState<ChecklistTask[] | null>(null);
@@ -283,6 +285,30 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const loadTrivia = useCallback(async () => {
+    try {
+      setTriviaStatus((status) => (status === 'ok' ? status : 'loading'));
+
+      const raw = await getTrivia();
+      setTrivia(
+        raw.map((item, index) => ({
+          id: String(item.newsId),
+          category: item.category ?? 'เกร็ดน่ารู้',
+          title: item.title,
+          description: item.description ?? '',
+          icon: (item.icon as IconName) || 'bulb-outline',
+          sourceUrl: item.externalLink ?? '',
+          bg: item.bg ?? CARD_COLORS[index % CARD_COLORS.length],
+          accent: item.accent ?? COLORS.brick,
+        }))
+      );
+      setTriviaStatus('ok');
+    } catch (err) {
+      console.error('loadTrivia error:', err);
+      setTriviaStatus('error');
+    }
+  }, []);
+
   const loadChecklist = useCallback(async () => {
     try {
       setChecklistError(false);
@@ -295,7 +321,8 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadFacts();
-  }, [loadFacts]);
+    loadTrivia();
+  }, [loadFacts, loadTrivia]);
 
   // โหลด Checklist ใหม่ทุกครั้งที่กลับมาหน้า Home
   // (ติ๊กเสร็จ/แก้วันที่ในหน้า Checklist แล้วกลับมา ข้อมูลจะตรงกันทันที)
@@ -311,7 +338,7 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadFacts(), loadChecklist()]);
+    await Promise.all([loadFacts(), loadTrivia(), loadChecklist()]);
     setRefreshing(false);
   };
 
@@ -400,8 +427,17 @@ export default function HomeScreen() {
             onOpen={openChecklist}
           />
 
-           {/* เกร็ดน่ารู้ */}
-          <TriviaSection items={KKU_TRIVIA} />
+          {/* เกร็ดน่ารู้ */}
+          {triviaStatus === 'error' && trivia.length === 0 ? (
+            <Pressable style={styles.heroState} onPress={loadTrivia}>
+              <Ionicons name="refresh" size={22} color="#FFFFFF" />
+              <Text style={styles.heroStateText}>
+                โหลดเกร็ดน่ารู้ไม่สำเร็จ แตะเพื่อลองใหม่
+              </Text>
+            </Pressable>
+          ) : (
+            triviaStatus === 'ok' && <TriviaSection items={trivia} />
+          )}
 
           <View style={styles.bottomSpace} />
         </ScrollView>

@@ -14,9 +14,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { getPlaces, getEvents, fetchTasks } from "../api/api";
+import { getPlaces, getEvents, fetchTasks, getTrivia } from "../api/api";
 import { fetchKkuEvents } from "../api/events";
-import { KKU_TRIVIA } from "../data/trivia";
 import { COLORS } from "../constants/appTheme";
 import { searchPlaces } from "../utils/searchPlaces"; // ← แก้ path ให้ตรงกับไฟล์จริงของคุณ
 
@@ -130,12 +129,13 @@ export default function SearchScreen() {
         let mounted = true;
 
         const build = async () => {
-            const [placesRes, eventsRes, kkuRes, tasksRes] =
+            const [placesRes, eventsRes, kkuRes, tasksRes, triviaRes] =
                 await Promise.allSettled([
                     getPlaces(),
                     getEvents(),
                     fetchKkuEvents(20),
                     fetchTasks(),
+                    getTrivia(),
                 ]);
 
             const items: SearchItem[] = [];
@@ -215,16 +215,22 @@ export default function SearchScreen() {
             }
 
             // เกร็ดน่ารู้
-            KKU_TRIVIA.forEach((t) =>
-                items.push({
-                    key: `trivia-${t.id}`,
-                    type: "trivia",
-                    title: t.title,
-                    subtitle: t.category,
-                    extraText: t.description,
-                    onPress: () => Linking.openURL(t.sourceUrl).catch(() => { }),
-                })
-            );
+            if (triviaRes.status === "fulfilled") {
+                triviaRes.value.forEach((t) =>
+                    items.push({
+                        key: `trivia-${t.newsId}`,
+                        type: "trivia",
+                        title: t.title,
+                        subtitle: t.category ?? undefined,
+                        extraText: t.description ?? "",
+                        onPress: () => {
+                            if (t.externalLink) {
+                                Linking.openURL(t.externalLink).catch(() => { });
+                            }
+                        },
+                    })
+                );
+            }
 
             if (mounted) {
                 setIndex(items);

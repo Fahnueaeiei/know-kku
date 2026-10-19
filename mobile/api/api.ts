@@ -43,6 +43,17 @@ export type ApiEvent = {
   imageUrl: string | null;
 };
 
+export type ApiTrivia = {
+  newsId: number;
+  category: string | null;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  externalLink: string | null;
+  bg: string | null;
+  accent: string | null;
+};
+
 /**
  * เช็คลิสต์ = กลุ่มหัวข้อ (เช่น "เตรียมสอบ")
  * แต่ละรายการมีวันที่/เวลา/รายละเอียดของตัวเอง เพราะเวลาไม่ตรงกัน
@@ -215,6 +226,8 @@ export const getEvents = () => request<ApiEvent[]>("/events");
 
 export const getEventById = (id: string | number) =>
   request<ApiEvent>(`/events/${id}`);
+
+export const getTrivia = () => request<ApiTrivia[]>("/news?type=trivia");
 
 /* =========================================================
    CHECKLIST
@@ -635,6 +648,25 @@ export type EventForChecklist = {
   note?: string | null;
 };
 
+function eventExistsInTasks(tasks: ChecklistTask[], event: EventForChecklist) {
+  const group = tasks.find((task) => task.title === EVENTS_GROUP_TITLE);
+
+  return Boolean(
+    group?.items.some(
+      (item) =>
+        (event.url && item.url === event.url) ||
+        item.title.trim() === event.title.trim()
+    )
+  );
+}
+
+export async function isEventInChecklist(
+  event: EventForChecklist,
+  getToken?: GetToken
+): Promise<boolean> {
+  return eventExistsInTasks(await fetchTasks(getToken), event);
+}
+
 export async function addEventToChecklist(
   ev: EventForChecklist,
   getToken?: GetToken
@@ -661,12 +693,7 @@ export async function addEventToChecklist(
   }
 
   // กันซ้ำ: url เดียวกัน หรือชื่อเดียวกัน
-  const duplicated = group.items.some(
-    (i) =>
-      (ev.url && i.url === ev.url) ||
-      i.title.trim() === ev.title.trim()
-  );
-  if (duplicated) return "exists";
+  if (eventExistsInTasks(tasks, ev)) return "exists";
 
   // ส่งรายการเดิมกลับไปด้วย (ไม่งั้น backend จะลบทิ้ง)
   const keepItems: NewChecklistItem[] = group.items.map((i) => ({

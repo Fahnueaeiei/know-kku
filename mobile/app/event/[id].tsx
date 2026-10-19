@@ -19,7 +19,11 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { getEventById, addEventToChecklist } from "../../api/api";
+import {
+  getEventById,
+  addEventToChecklist,
+  isEventInChecklist,
+} from "../../api/api";
 import { fetchKkuEventById } from "../../api/events";
 import { COLORS } from "../../constants/appTheme";
 
@@ -81,6 +85,8 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  const [checkingChecklist, setCheckingChecklist] = useState(false);
+  const [alreadyAdded, setAlreadyAdded] = useState(false);
 
   /* =======================================================
      LOAD EVENT
@@ -208,6 +214,38 @@ export default function EventDetailScreen() {
     };
   }, [id, isKku, title, dateLabel, venue, imageUrl, url]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    if (!event) {
+      setAlreadyAdded(false);
+      setCheckingChecklist(false);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setCheckingChecklist(true);
+    isEventInChecklist({
+      title: event.title,
+      url: event.externalLink,
+    })
+      .then((exists) => {
+        if (mounted) setAlreadyAdded(exists);
+      })
+      .catch((err) => {
+        console.error("Failed to check event checklist status:", err);
+        if (mounted) setAlreadyAdded(false);
+      })
+      .finally(() => {
+        if (mounted) setCheckingChecklist(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [event?.title, event?.externalLink]);
+
   /* =======================================================
      DATE / TIME
   ======================================================= */
@@ -268,6 +306,8 @@ export default function EventDetailScreen() {
         url: event.externalLink,
         note: event.dateLabel ? `Date: ${event.dateLabel}` : undefined,
       });
+
+      setAlreadyAdded(true);
 
       notify(
         result === "added" ? "Added to Checklist" : "Already in Checklist",
@@ -585,22 +625,32 @@ export default function EventDetailScreen() {
             <View style={styles.actionRow}>
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={[styles.checklistButton, adding && { opacity: 0.6 }]}
+                style={[
+                  styles.checklistButton,
+                  (adding || checkingChecklist) && { opacity: 0.6 },
+                  alreadyAdded && styles.checklistButtonAdded,
+                ]}
                 onPress={addToChecklist}
-                disabled={adding}
+                disabled={adding || checkingChecklist || alreadyAdded}
               >
-                {adding ? (
+                {adding || checkingChecklist ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Ionicons
-                    name="add-circle-outline"
+                    name={alreadyAdded ? "checkmark-circle" : "add-circle-outline"}
                     size={18}
                     color="#FFFFFF"
                   />
                 )}
 
                 <Text style={styles.checklistButtonText}>
-                  {adding ? "Adding..." : "Add to Checklist"}
+                  {adding
+                    ? "Adding..."
+                    : checkingChecklist
+                      ? "Checking..."
+                      : alreadyAdded
+                        ? "Added"
+                        : "Add to Checklist"}
                 </Text>
               </TouchableOpacity>
 
@@ -888,6 +938,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+  },
+
+  checklistButtonAdded: {
+    backgroundColor: "#2E7D5B",
   },
 
   checklistButtonText: {
