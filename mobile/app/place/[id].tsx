@@ -81,6 +81,9 @@ type PlaceDetail = {
   latitude: number;
   longitude: number;
 
+  priceMin: number | null;
+  priceMax: number | null;
+
   shuttleRoutes: ShuttleRoute[];
 
   nearbyPlaces: NearbyPlace[];
@@ -231,6 +234,19 @@ async function submitPlaceReview(
   };
 }
 
+const toNumberOrNull = (v: any) => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const formatPriceRange = (min: number | null, max: number | null) => {
+  if (min == null && max == null) return "";
+  if (min != null && max != null) {
+    return min === max ? `฿${min}` : `฿${min} - ฿${max}`;
+  }
+  return min != null ? `From ฿${min}` : `Up to ฿${max}`;
+};
 
 /* =========================================================
    OPENING HOURS HELPERS
@@ -428,6 +444,8 @@ export default function PlaceDetailScreen() {
           },
           latitude: data.latitude === null ? Number.NaN : Number(data.latitude),
           longitude: data.longitude === null ? Number.NaN : Number(data.longitude),
+          priceMin: toNumberOrNull(data.priceMin),
+          priceMax: toNumberOrNull(data.priceMax),
           shuttleRoutes: (data.busLines ?? []).map((item) => ({
             id: String(item.busLine.busLineId),
             name: `${item.busLine.name} Line`,
@@ -577,6 +595,8 @@ export default function PlaceDetailScreen() {
 
   const showNearby = !isRestaurant || SHOW_NEARBY_FOR_RESTAURANT;
 
+  const priceText = formatPriceRange(place.priceMin, place.priceMax);
+
   /* =======================================================
      MAIN
   ======================================================= */
@@ -685,6 +705,13 @@ export default function PlaceDetailScreen() {
             <Text style={styles.placeName}>
               {place.name}
             </Text>
+
+            {!!priceText && (
+              <View style={styles.priceRow}>
+                <Ionicons name="pricetag-outline" size={15} color={COLORS.brick} />
+                <Text style={styles.priceText}>{priceText}</Text>
+              </View>
+            )}
 
             {/* OPENING HOURS (รายวัน) */}
 
@@ -1541,6 +1568,27 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: COLORS.ink,
     marginBottom: 14,
+  },
+
+    priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    backgroundColor: COLORS.cream,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    marginTop: -4,
+    marginBottom: 14,
+  },
+
+  priceText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.brick,
   },
 
   /* =======================================================

@@ -30,6 +30,24 @@ type Props = {
   onToggleFavorite: (place: any) => void;
 };
 
+/* ---------- ราคา: รองรับทั้งตัวเลขและสตริง ("40.00") ---------- */
+
+const formatPrice = (minRaw: any, maxRaw: any) => {
+  const toNum = (v: any) =>
+    v === null || v === undefined || v === "" || !Number.isFinite(Number(v))
+      ? null
+      : Number(v);
+
+  const min = toNum(minRaw);
+  const max = toNum(maxRaw);
+
+  if (min == null && max == null) return "";
+  if (min != null && max != null) {
+    return min === max ? `฿${min}` : `฿${min} - ฿${max}`;
+  }
+  return min != null ? `From ฿${min}` : `Up to ฿${max}`;
+};
+
 export default function PlaceCard({
   place,
   index = 0,
@@ -49,6 +67,8 @@ export default function PlaceCard({
     place.description?.trim() || "Tap to see details";
 
   const favorite = place.favorite === true;
+
+  const priceText = formatPrice(place.priceMin, place.priceMax);
 
   /* ---------- ปุ่มหัวใจ ---------- */
 
@@ -70,55 +90,66 @@ export default function PlaceCard({
     </TouchableOpacity>
   );
 
-  /* ---------- ป้ายประเภท + ระยะทาง (ถ้า backend ส่ง distance มา) ---------- */
+  /* ---------- ป้ายประเภท + ระยะทาง + ราคา ---------- */
 
   const renderChips = () => {
-  const isBuilding = String(place.category ?? "")
-    .trim()
-    .toLowerCase()
-    .includes("building");
+    const isBuilding = String(place.category ?? "")
+      .trim()
+      .toLowerCase()
+      .includes("building");
 
-  return (
-    <View style={styles.chipRow}>
-      <View
-        style={[
-          styles.chip,
-          isBuilding && {
-            backgroundColor: "#E3F2FD",
-            borderColor: "#BBDEFB",
-          },
-        ]}
-      >
-        <Ionicons
-          name={meta.icon}
-          size={12}
-          color={meta.color}
-        />
-        <Text
-          style={styles.chipText}
-          numberOfLines={1}
+    return (
+      <View style={styles.chipRow}>
+        <View
+          style={[
+            styles.chip,
+            isBuilding && {
+              backgroundColor: "#E3F2FD",
+              borderColor: "#BBDEFB",
+            },
+          ]}
         >
-          {place.category}
-        </Text>
-      </View>
-
-      {!!place.distance && (
-        <View style={styles.chip}>
           <Ionicons
-            name="walk-outline"
+            name={meta.icon}
             size={12}
-            color={COLORS.inkSoft}
+            color={meta.color}
           />
           <Text
-            style={[styles.chipText, { color: COLORS.white }]}
+            style={styles.chipText}
+            numberOfLines={1}
           >
-            {place.distance}
+            {place.category}
           </Text>
         </View>
-      )}
-    </View>
-  );
-};
+
+        {!!place.distance && (
+          <View style={styles.chip}>
+            <Ionicons
+              name="walk-outline"
+              size={12}
+              color={COLORS.inkSoft}
+            />
+            <Text style={styles.chipText}>
+              {place.distance}
+            </Text>
+          </View>
+        )}
+
+        {!!priceText && (
+          <View style={styles.chip}>
+            <Ionicons
+              name="pricetag-outline"
+              size={12}
+              color={COLORS.brick}
+            />
+            <Text style={[styles.chipText, { color: COLORS.brick }]}>
+              {priceText}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   /* ---------- รูป (ไม่มีรูป → พื้นสี + ไอคอนประเภท) ---------- */
 
@@ -213,57 +244,57 @@ export default function PlaceCard({
 const styles = StyleSheet.create({
   /* ---------- shared ---------- */
 
-heartButton: {
-  width: 36,
-  height: 36,
-  borderRadius: 18,
-  backgroundColor: COLORS.white,
-  alignItems: "center",
-  justifyContent: "center",
-},
+  heartButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-heartButtonSmall: {
-  width: 30,
-  height: 30,
-  borderRadius: 15,
-},
+  heartButtonSmall: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
 
-chipRow: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: 6,
-},
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+  },
 
-chip: {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 5,
-  backgroundColor: COLORS.cream,
-  borderRadius: 11,
-  paddingHorizontal: 9,
-  paddingVertical: 4,
-  borderWidth: 1,
-  borderColor: COLORS.creamBorder,
-},
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: COLORS.cream,
+    borderRadius: 11,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLORS.creamBorder,
+  },
 
-chipText: {
-  fontSize: 11.5,
-  fontWeight: "700",
-  color: COLORS.back,
-},
+  chipText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: COLORS.inkSoft,
+  },
 
-imageFallback: {
-  backgroundColor: COLORS.cream,
-  alignItems: "center",
-  justifyContent: "center",
-},
+  imageFallback: {
+    backgroundColor: COLORS.cream,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-description: {
-  fontSize: 12.5,
-  lineHeight: 18,
-  color: COLORS.inkSoft,
-},
+  description: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: COLORS.inkSoft,
+  },
 
   /* ---------- featured ---------- */
 

@@ -60,5 +60,9 @@ export function getCategoryMeta(category?: string | null): CategoryMeta {
     return { icon: 'business-outline', color: '#1E6FB8' };
   }
 
+  if (key.includes('relax') || key.includes('park') || key.includes('garden')) {
+    return { icon: 'leaf-outline', color: '#2F8F5B' };
+  }
+
   return { icon: 'location-outline', color: COLORS.brick };
 }
