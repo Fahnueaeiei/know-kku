@@ -105,6 +105,99 @@ type UpcomingItem = {
 
 type LoadStatus = 'loading' | 'ok' | 'error';
 
+type TriviaItem = {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  icon: IconName;
+  sourceUrl: string;
+  bg: string; // สีพื้นการ์ด
+  accent: string; // สีเน้น (ไอคอน ตัวหนังสือรอง จุด)
+};
+
+/* =========================================================
+   เกร็ดน่ารู้ (ข้อมูลคงที่ พร้อมแหล่งอ้างอิง)
+   ถ้าอยากย้ายไปเก็บที่ backend ภายหลัง แค่เปลี่ยนค่าคงที่นี้เป็น state ที่ fetch มา
+========================================================= */
+
+const KKU_TRIVIA: TriviaItem[] = [  
+  {
+    id: 'mor-din-daeng',
+    category: 'ประวัติ มข.',
+    title: 'ทำไมถึงเรียก “มอดินแดง”? เพราะที่ตั้ง มข. เป็นเนินดินสีแดงนี่แหละ',
+    description:
+      'พื้นที่ราว 5,500 ไร่เป็นเนินดินลูกคลื่นสีแดง ชื่อเล่นสุดคุ้นหูของชาว มข. ก็มาจากตรงนี้เอง',
+    icon: 'earth-outline',
+    sourceUrl: encodeURI(
+      'https://hr.kku.ac.th/hrdkku2014/app/media/files/ระเบียบบุคลากร/พนักงานมหาวิทยาลัย/คู่มือพนักงานมหาวิทยาลัย/บทที่ 1 ประวัติความเป็นมา.pdf'
+    ),
+    bg: '#E3DBFA',
+    accent: '#5B3FB3',
+  },   
+  {
+    id: 'notebook-loan',
+    category: 'บริการนักศึกษา',
+    title:
+      'ไม่มีโน้ตบุ๊กใช้ทำงาน? นักศึกษา มข. ยืมได้ที่สำนักเทคโนโลยีดิจิทัลนะ',
+    description:
+      'ไปที่ชั้น 5 อาคารศูนย์สารสนเทศ (ข้างหอสมุด) พกบัตรนักศึกษาตัวจริงกับใบเสร็จค่าเทอม (REG) ไปด้วย แล้วเช็กสภาพเครื่องก่อนรับด้วยนะ',
+    icon: 'laptop-outline',
+    sourceUrl: 'https://digital.kku.ac.th/student-notebook-loan/',
+    bg: '#CFF3F7',
+    accent: '#0B7285',
+  },
+  {
+    id: 'art-lane',
+    category: 'เทศกาล & ศิลปะ',
+    title:
+      'ทุกปีสะพานขาวจะแปลงร่างเป็นถนนศิลปะ ในงาน “Art Lane” ของเด็กศิลปกรรม',
+    description:
+      'นักศึกษาจะนำเอาผลงานศิลปะกับการแสดงดนตรีมาโชว์กัน งานจะจัดในช่วงเดือนกุมภาพันธ์ของทุกปี ใครที่รักงานศิลปะ ปีหน้าอย่าพลาดนะ',
+    icon: 'color-palette-outline',
+    sourceUrl: 'https://www.facebook.com/artlaneKKU',
+    bg: '#F7D6E4',
+    accent: '#B5336B',
+  },
+  {
+    id: 'seethan-festival',
+    category: 'เทศกาล & วัฒนธรรม',
+    title: 'บึงสีฐานเนรมิตเป็นเทศกาล “สีฐานเฟสติวัล” จัดมาตั้งแต่ปี 2558',
+    description:
+      'ลองนึกภาพเรือไฟกับกระทงยักษ์ยาวกว่า 20 เมตร และแสงประทีปกระทงบกกว่า 15,000 ดวงที่บึงสีฐาน จัดเต็ม 3 วัน 3 คืน ใครยังไม่เคยไป มีโอกาสห้ามพลาด!',
+    icon: 'sparkles-outline',
+    sourceUrl: 'https://www.facebook.com/SithanKKUFestival/?locale=th_TH',
+    bg: '#B5EFE3',
+    accent: '#0F7A64',
+  },
+  {
+    id: 'founding-day',
+    category: 'ประวัติ มข.',
+    title:
+      'วันเกิด มข. คือ 25 ม.ค. แต่พิธีเปิดมหาวิทยาลัยจัดอีกเกือบ 2 ปีให้หลัง',
+    description:
+      'พ.ร.บ. ประกาศเมื่อ 25 ม.ค. 2509 ส่วนพิธีเปิดจัดวันที่ 20 ธ.ค. 2510 และ มข. คือสถาบันอุดมศึกษาแห่งแรกของภาคอีสานด้วยนะ',
+    icon: 'flag-outline',
+    sourceUrl: 'https://gsbooks.gs.kku.ac.th/66/manual/files/info03.pdf',
+    bg: '#FDE2C6',
+    accent: COLORS.brick,
+  },
+ 
+   {
+    id: 'dormitory',
+    category: 'หอพัก',
+    title:
+      'มข. มีหอพักให้เลือกถึง 4 แบบ แถมจองหอกับแจ้งซ่อมก็ทำออนไลน์ได้',
+    description:
+      'มีทั้งหอพักส่วนกลาง หอพักในกำกับ หอพักคณะ และหอพักเครือข่าย อยากรู้เพิ่มเติมสอบถามที่พี่ดินแดงได้เลย',
+    icon: 'bed-outline',
+    sourceUrl: 'https://dorm.kku.ac.th/',
+    bg: '#E4F3C8',
+    accent: '#4D7C0F',
+  },
+
+];
+
 /* =========================================================
    DATE HELPERS (เก็บวันที่เป็น "YYYY-MM-DD" เหมือนหน้า Checklist)
 ========================================================= */
@@ -386,6 +479,9 @@ export default function HomeScreen() {
             onRetry={loadChecklist}
             onOpen={openChecklist}
           />
+
+           {/* เกร็ดน่ารู้ */}
+          <TriviaSection items={KKU_TRIVIA} />
 
           <View style={styles.bottomSpace} />
         </ScrollView>
@@ -794,6 +890,159 @@ function ChecklistReminder({
   );
 }
 
+/* =========================================================
+   เกร็ดน่ารู้ — การ์ดปัดแนวนอน
+   - การ์ดกว้าง ~82% เห็นขอบการ์ดใบถัดไปเพื่อชวนให้ปัด
+   - snap ทีละใบ + จุดบอกตำแหน่ง (สีจุดตามสีการ์ดที่เปิดอยู่)
+   - แตะการ์ดเพื่อเปิดแหล่งที่มา
+========================================================= */
+
+const TRIVIA_GAP = 12;
+
+function TriviaSection({ items }: { items: TriviaItem[] }) {
+  const cardWidth = Math.round(
+    (Dimensions.get('window').width - SCREEN_PADDING * 2) * 0.82
+  );
+  const snap = cardWidth + TRIVIA_GAP;
+  const [index, setIndex] = useState(0);
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    const atEnd =
+      contentOffset.x + layoutMeasurement.width >= contentSize.width - 4;
+    const next = atEnd ? items.length - 1 : Math.round(contentOffset.x / snap);
+    setIndex(Math.max(0, Math.min(items.length - 1, next)));
+  };
+
+  if (items.length === 0) return null;
+
+  const activeAccent = items[index].accent;
+
+  return (
+    <View style={styles.triviaSection}>
+      <View style={styles.triviaHeader}>
+        <View style={styles.triviaHeaderIcon}>
+          <Ionicons name="sparkles" size={20} color={COLORS.brick} />
+        </View>
+
+        <View style={styles.triviaHeaderText}>
+          <Text style={styles.panelTitle}>เกร็ดน่ารู้</Text>
+          <Text style={styles.panelSubtitle}>เรื่องเล่าจากมอดินแดง</Text>
+        </View>
+
+        <Text style={styles.triviaCounter}>
+          {index + 1}/{items.length}
+        </Text>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={snap}
+        snapToAlignment="start"
+        scrollEventThrottle={16}
+        onScroll={onScroll}
+        style={styles.triviaScroll}
+        contentContainerStyle={styles.triviaScrollContent}
+      >
+        {items.map((item, i) => (
+          <TriviaCard
+            key={item.id}
+            item={item}
+            order={i + 1}
+            width={cardWidth}
+          />
+        ))}
+      </ScrollView>
+
+      <View style={styles.triviaDots}>
+        {items.map((item, i) => (
+          <View
+            key={item.id}
+            style={[
+              styles.triviaDot,
+              i === index && [
+                styles.triviaDotActive,
+                { backgroundColor: activeAccent },
+              ],
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function TriviaCard({
+  item,
+  order,
+  width,
+}: {
+  item: TriviaItem;
+  order: number;
+  width: number;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`${item.title} เปิดแหล่งที่มา`}
+      onPress={() => openExternalLink(item.sourceUrl)}
+      style={({ pressed }) => [
+        styles.triviaCard,
+        { width, backgroundColor: item.bg },
+        pressed && styles.pressedSoft,
+      ]}
+    >
+      {/* ลายน้ำ: เลขลำดับ + ไอคอนใหญ่จางๆ */}
+      <Text style={[styles.triviaNumber, { color: item.accent }]}>
+        {String(order).padStart(2, '0')}
+      </Text>
+      <Ionicons
+        name={item.icon}
+        size={110}
+        color={item.accent}
+        style={styles.triviaWatermark}
+      />
+
+      <View style={styles.triviaTopRow}>
+        <View style={[styles.triviaIconCircle, { backgroundColor: item.accent }]}>
+          <Ionicons name={item.icon} size={18} color="#FFFFFF" />
+        </View>
+
+        <View style={styles.triviaChip}>
+          <Text
+            style={[styles.triviaChipText, { color: item.accent }]}
+            numberOfLines={1}
+          >
+            {item.category}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.triviaBody}>
+        <Text style={[styles.triviaLabel, { color: item.accent }]}>
+          รู้หรือไม่?
+        </Text>
+        <Text style={styles.triviaTitle} numberOfLines={3}>
+          {item.title}
+        </Text>
+        <Text style={styles.triviaDescription} numberOfLines={4}>
+          {item.description}
+        </Text>
+      </View>
+
+      <View style={styles.triviaFooter}>
+        <View style={styles.triviaSourcePill}>
+          <Ionicons name="open-outline" size={13} color={item.accent} />
+          <Text style={[styles.triviaSourceText, { color: item.accent }]}>
+            ดูแหล่งที่มา
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
 /* =========================================================
    STYLES
 ========================================================= */
@@ -1221,6 +1470,172 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.brick,
     paddingTop: 3,
+  },
+
+    /* เกร็ดน่ารู้ */
+
+  triviaSection: {
+    marginBottom: 16,
+  },
+
+  triviaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  triviaHeaderIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FBD9C2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+
+  triviaHeaderText: {
+    flex: 1,
+  },
+
+  triviaCounter: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+
+  // ขยายออกไปชิดขอบจอ เพื่อให้การ์ดที่โผล่มาดูเหมือนปัดต่อได้
+  triviaScroll: {
+    marginHorizontal: -SCREEN_PADDING,
+  },
+
+  triviaScrollContent: {
+    paddingHorizontal: SCREEN_PADDING,
+    gap: TRIVIA_GAP,
+  },
+
+  triviaCard: {
+    height: 238,
+    borderRadius: 22,
+    padding: 16,
+    overflow: 'hidden',
+    justifyContent: 'space-between',
+    shadowColor: '#AFA7A2',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  triviaNumber: {
+    position: 'absolute',
+    right: 14,
+    top: -6,
+    fontSize: 78,
+    lineHeight: 90,
+    fontWeight: '900',
+    opacity: 0.1,
+  },
+
+  triviaWatermark: {
+    position: 'absolute',
+    right: -18,
+    bottom: -14,
+    opacity: 0.08,
+  },
+
+  triviaTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  triviaIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  triviaChip: {
+    maxWidth: 160,
+    height: 26,
+    paddingHorizontal: 10,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  triviaChipText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+
+  triviaBody: {
+    flexShrink: 1,
+  },
+
+  triviaLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    marginBottom: 3,
+  },
+
+  triviaTitle: {
+    fontSize: 15.5,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: COLORS.ink,
+  },
+
+  triviaDescription: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.inkSoft,
+  },
+
+  triviaFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+
+  triviaSourcePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 28,
+    paddingHorizontal: 11,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+
+  triviaSourceText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  triviaDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 10,
+  },
+
+  triviaDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.creamBorder,
+  },
+
+  triviaDotActive: {
+    width: 18,
   },
 
   /* BOTTOM */
