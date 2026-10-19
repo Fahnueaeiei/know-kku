@@ -15,8 +15,16 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { loginUser } from '../api/authApi';
+import { type Href, useRouter } from 'expo-router';
+import { useSignIn } from '@clerk/expo';
+
+const notify = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 /* =========================================================
    COLORS
@@ -44,6 +52,7 @@ const COLORS = {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { signIn } = useSignIn();
 
   /* ================= FORM STATE ================= */
 
@@ -93,10 +102,14 @@ export default function LoginScreen() {
   };
 
   /* =========================================================
-     LOGIN
+     LOGIN (Clerk)
   ========================================================= */
 
   const handleLogin = async () => {
+    if (loading) {
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
@@ -104,40 +117,42 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      /*
-       * Backend call
-       *
-       * ตอนนี้ API ยังไม่ได้เชื่อมจริง
-       * เมื่อ Backend พร้อม function นี้จะเรียก
-       * POST /auth/login
-       */
-
-        const result = await loginUser({
-        email: email.trim(),
+      const { error } = await signIn.password({
+        emailAddress: email.trim(),
         password,
       });
 
-      console.log('LOGIN SUCCESS:', result);
+      if (error) {
+        notify(
+          'Login failed',
+          error.message || 'Unable to login. Please check your email and password.'
+        );
+        return;
+      }
 
-      /*
-       * TODO:
-       *
-       * เก็บ token / user session
-       *
-       * เช่น
-       * await saveToken(result.token);
-       *
-       * แล้วค่อย redirect
-       */
+      if (signIn.status === 'complete') {
+        const { error: finalizeError } = await signIn.finalize({
+          navigate: ({ session, decorateUrl }) => {
+            if (session?.currentTask) return;
+            router.replace(decorateUrl('/') as Href);
+          },
+        });
 
-      router.replace('/');
+        if (finalizeError) {
+          notify('Login failed', finalizeError.message || 'Unable to start your session.');
+        }
+      } else {
+        notify(
+          'Login failed',
+          `Additional verification is required (${signIn.status}).`
+        );
+      }
     } catch (error: any) {
-      console.log('LOGIN ERROR:', error);
-
-      Alert.alert(
+      console.log('login error:', JSON.stringify(error));
+      notify(
         'Login failed',
         error?.message ||
-          'Unable to login. Please check your email and password.'
+        'Unable to login. Please check your email and password.'
       );
     } finally {
       setLoading(false);

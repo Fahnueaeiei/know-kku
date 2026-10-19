@@ -8,11 +8,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useSignUp } from "@clerk/expo";
+
+const KKU_EMAIL = /^[^\s@]+@(kku\.ac\.th|kkumail\.com)$/i;
 
 export default function SignUpScreen() {
+  const { signUp } = useSignUp();
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,8 +29,20 @@ export default function SignUpScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // ขั้นยืนยันอีเมล (Clerk ส่งรหัสไปที่อีเมล)
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [code, setCode] = useState("");
+
+  const clerkMessage = (err: any, fallback: string) =>
+    err?.errors?.[0]?.longMessage || err?.message || fallback;
+
+  /* ================= STEP 1: CREATE ACCOUNT ================= */
 
   const handleSignUp = async () => {
+    if (loading) return;
+
     setError("");
 
     // Basic validation
@@ -39,44 +57,127 @@ export default function SignUpScreen() {
       return;
     }
 
+    if (!KKU_EMAIL.test(email.trim())) {
+      setError("Please use your @kkumail.com or @kku.ac.th email.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
-    // TODO:
-    // Connect to Backend API here
-    //
-    // Example:
-    //
-    // const response = await fetch(
-    //   "YOUR_API_URL/auth/register",
-    //   {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //     },
-    //     body: JSON.stringify({
-    //       username,
-    //       email,
-    //       password,
-    //       phone,
-    //     }),
-    //   }
-    // );
-    //
-    // const data = await response.json();
+    try {
+      setLoading(true);
 
-    console.log({
-      username,
-      email,
-      password,
-      confirmPassword,
-      phone,
-    });
+      const { error: passwordError } = await signUp.password({
+        emailAddress: email.trim(),
+        password,
+        username: username.trim(),
+      });
 
-    // หลังจาก Backend สมัครสำเร็จ
-    // router.replace("/login");
+      if (passwordError) {
+        setError(clerkMessage(passwordError, "Unable to create account."));
+        return;
+      }
+
+      const { error: metadataError } = await signUp.update({
+        unsafeMetadata: {
+          username: username.trim(),
+          phone: phone.trim(),
+        },
+      });
+
+      if (metadataError) {
+        setError(clerkMessage(metadataError, "Unable to save account details."));
+        return;
+      }
+
+      const { error: sendError } = await signUp.verifications.sendEmailCode();
+
+      if (sendError) {
+        setError(clerkMessage(sendError, "Unable to send a verification code."));
+        return;
+      }
+
+      setPendingVerification(true);
+    } catch (err: any) {
+      setError(clerkMessage(err, "Unable to create account."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ================= STEP 2: VERIFY EMAIL ================= */
+
+  const handleVerify = async () => {
+    if (loading) return;
+
+    setError("");
+
+    if (!code.trim()) {
+      setError("Please enter the verification code.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { error: updateError } = await signUp.update({
+        username: username.trim(),
+      });
+
+      if (updateError) {
+        setError(clerkMessage(updateError, "Unable to update your username."));
+        return;
+      }
+
+      const { error: verifyError } = await signUp.verifications.verifyEmailCode({
+        code: code.trim(),
+      });
+
+      if (verifyError) {
+        setError(clerkMessage(verifyError, "Invalid verification code."));
+        return;
+      }
+
+      if (signUp.status !== "complete" || !signUp.createdSessionId) {
+        const outstandingFields = [
+          ...signUp.missingFields,
+          ...signUp.unverifiedFields.map((field) => `${field} (verification required)`),
+        ];
+
+        setError(
+          `Clerk still requires: ${outstandingFields.join(", ") || "additional account information"}. Check the required sign-up fields in Clerk.`
+        );
+        return;
+      }
+
+      const { error: finalizeError } = await signUp.finalize();
+
+      if (finalizeError) {
+        setError(clerkMessage(finalizeError, "Unable to start your session."));
+      }
+    } catch (err: any) {
+      setError(clerkMessage(err, "Invalid verification code."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (loading) return;
+
+    setError("");
+
+    try {
+      const { error: resendError } = await signUp.verifications.sendEmailCode();
+      if (resendError) {
+        setError(clerkMessage(resendError, "Unable to resend the code."));
+      }
+    } catch (err: any) {
+      setError(clerkMessage(err, "Unable to resend the code."));
+    }
   };
 
   return (
@@ -93,196 +194,278 @@ export default function SignUpScreen() {
         <View style={styles.header}>
           <Text style={styles.appName}>Know KKU</Text>
 
-          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.title}>
+            {pendingVerification ? "Verify Email" : "Create Account"}
+          </Text>
 
           <Text style={styles.subtitle}>
-            Join Know KKU and start your KKU journey
+            {pendingVerification
+              ? `We sent a verification code to ${email.trim()}`
+              : "Join Know KKU and start your KKU journey"}
           </Text>
         </View>
 
         {/* Sign Up Card */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Sign Up</Text>
+          {pendingVerification ? (
+            <>
+              <Text style={styles.cardTitle}>Verification</Text>
 
-          {/* Username */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username</Text>
+              {/* Code */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Verification Code</Text>
 
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="person-outline"
-                size={20}
-                color="#8A8A8A"
-                style={styles.inputIcon}
-              />
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={20}
+                    color="#8A8A8A"
+                    style={styles.inputIcon}
+                  />
 
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your username"
-                placeholderTextColor="#A5A5A5"
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-              />
-            </View>
-          </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter the code"
+                    placeholderTextColor="#A5A5A5"
+                    value={code}
+                    onChangeText={setCode}
+                    keyboardType="number-pad"
+                    autoCapitalize="none"
+                    editable={!loading}
+                  />
+                </View>
+              </View>
 
-          {/* Email */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color="#8A8A8A"
-                style={styles.inputIcon}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#A5A5A5"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-          </View>
-
-          {/* Password */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                color="#8A8A8A"
-                style={styles.inputIcon}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor="#A5A5A5"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
+              {/* Error */}
+              {error ? (
+                <Text style={styles.errorText}>{error}</Text>
+              ) : null}
 
               <Pressable
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
+                style={({ pressed }) => [
+                  styles.createButton,
+                  (pressed || loading) && styles.buttonPressed,
+                ]}
+                onPress={handleVerify}
+                disabled={loading}
               >
-                <Ionicons
-                  name={
-                    showPassword
-                      ? "eye-outline"
-                      : "eye-off-outline"
-                  }
-                  size={20}
-                  color="#8A8A8A"
-                />
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.createButtonText}>
+                    Verify Email
+                  </Text>
+                )}
               </Pressable>
-            </View>
-          </View>
 
-          {/* Confirm Password */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Confirm Password</Text>
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>
+                  Didn't get the code?
+                </Text>
 
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                color="#8A8A8A"
-                style={styles.inputIcon}
-              />
+                <Pressable onPress={handleResend} disabled={loading}>
+                  <Text style={styles.loginLink}> Resend</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.cardTitle}>Sign Up</Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm your password"
-                placeholderTextColor="#A5A5A5"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showConfirmPassword}
-                autoCapitalize="none"
-              />
+              {/* Username */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Username</Text>
 
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="person-outline"
+                    size={20}
+                    color="#8A8A8A"
+                    style={styles.inputIcon}
+                  />
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your username"
+                    placeholderTextColor="#A5A5A5"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                    editable={!loading}
+                  />
+                </View>
+              </View>
+
+              {/* Email */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={20}
+                    color="#8A8A8A"
+                    style={styles.inputIcon}
+                  />
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#A5A5A5"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!loading}
+                  />
+                </View>
+              </View>
+
+              {/* Password */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#8A8A8A"
+                    style={styles.inputIcon}
+                  />
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#A5A5A5"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    editable={!loading}
+                  />
+
+                  <Pressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeButton}
+                  >
+                    <Ionicons
+                      name={
+                        showPassword
+                          ? "eye-outline"
+                          : "eye-off-outline"
+                      }
+                      size={20}
+                      color="#8A8A8A"
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Confirm Password */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Confirm Password</Text>
+
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#8A8A8A"
+                    style={styles.inputIcon}
+                  />
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm your password"
+                    placeholderTextColor="#A5A5A5"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                    autoCapitalize="none"
+                    editable={!loading}
+                  />
+
+                  <Pressable
+                    onPress={() =>
+                      setShowConfirmPassword(!showConfirmPassword)
+                    }
+                    style={styles.eyeButton}
+                  >
+                    <Ionicons
+                      name={
+                        showConfirmPassword
+                          ? "eye-outline"
+                          : "eye-off-outline"
+                      }
+                      size={20}
+                      color="#8A8A8A"
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Phone */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Phone</Text>
+
+                <View style={styles.inputWrapper}>
+                  <Ionicons
+                    name="call-outline"
+                    size={20}
+                    color="#8A8A8A"
+                    style={styles.inputIcon}
+                  />
+
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your phone number"
+                    placeholderTextColor="#A5A5A5"
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                    editable={!loading}
+                  />
+                </View>
+              </View>
+
+              {/* Error */}
+              {error ? (
+                <Text style={styles.errorText}>{error}</Text>
+              ) : null}
+
+              {/* Create Account Button */}
               <Pressable
-                onPress={() =>
-                  setShowConfirmPassword(!showConfirmPassword)
-                }
-                style={styles.eyeButton}
+                style={({ pressed }) => [
+                  styles.createButton,
+                  (pressed || loading) && styles.buttonPressed,
+                ]}
+                onPress={handleSignUp}
+                disabled={loading}
               >
-                <Ionicons
-                  name={
-                    showConfirmPassword
-                      ? "eye-outline"
-                      : "eye-off-outline"
-                  }
-                  size={20}
-                  color="#8A8A8A"
-                />
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.createButtonText}>
+                    Create Account
+                  </Text>
+                )}
               </Pressable>
-            </View>
-          </View>
 
-          {/* Phone */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone</Text>
+              {/* Required by Clerk's web sign-up protection. */}
+              <View nativeID="clerk-captcha" />
 
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="call-outline"
-                size={20}
-                color="#8A8A8A"
-                style={styles.inputIcon}
-              />
+              {/* Login */}
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>
+                  Already have an account?
+                </Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your phone number"
-                placeholderTextColor="#A5A5A5"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-          </View>
-
-          {/* Error */}
-          {error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : null}
-
-          {/* Create Account Button */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.createButton,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleSignUp}
-          >
-            <Text style={styles.createButtonText}>
-              Create Account
-            </Text>
-          </Pressable>
-
-          {/* Login */}
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>
-              Already have an account?
-            </Text>
-
-            <Pressable onPress={() => router.push("/login")}>
-              <Text style={styles.loginLink}> Login</Text>
-            </Pressable>
-          </View>
+                <Pressable onPress={() => router.push("/login")}>
+                  <Text style={styles.loginLink}> Login</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Footer */}

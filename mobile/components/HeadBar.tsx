@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-export default function HeadBar({ avatar, onAvatarPress }) {
+export default function HeadBar({ avatar, avatarInitial = 'U', onAvatarPress }) {
   return (
     <View style={styles.header}>
       
@@ -33,7 +33,7 @@ export default function HeadBar({ avatar, onAvatarPress }) {
         ) : (
           <View style={styles.avatarPlaceholder}>
             <Text style={styles.avatarText}>
-              U
+              {avatarInitial}
             </Text>
           </View>
         )}

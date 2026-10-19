@@ -14,6 +14,8 @@ import {
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useAuth, useUser } from "@clerk/expo";
 
 /* =========================================================
    COLORS
@@ -36,22 +38,24 @@ const COLORS = {
 };
 
 /* =========================================================
-   MOCK USER DATA
-========================================================= */
-
-const INITIAL_USER = {
-  username: "sujeephon_kk",
-  email: "sujeephon@gmail.com",
-  phone: "081-234-5678",
-  avatar: require("../assets/images/jeno1.jpg"),
-};
-
-/* =========================================================
    PROFILE SCREEN
 ========================================================= */
 
 export default function ProfileScreen() {
-  const [user, setUser] = useState(INITIAL_USER);
+  const router = useRouter();
+  const { signOut } = useAuth();
+  const { user: clerkUser } = useUser();
+  const username =
+    clerkUser?.username ||
+    clerkUser?.fullName ||
+    clerkUser?.primaryEmailAddress?.emailAddress?.split("@")[0] ||
+    "Not set";
+  const email = clerkUser?.primaryEmailAddress?.emailAddress || "No email";
+  const storedPhone = clerkUser?.unsafeMetadata?.phone;
+  const phone =
+    typeof storedPhone === "string" && storedPhone.trim()
+      ? storedPhone
+      : "Not added";
 
   /*
    * field ที่กำลังแก้ไข
@@ -79,7 +83,7 @@ export default function ProfileScreen() {
     field: "username" | "phone"
   ) => {
     setEditingField(field);
-    setEditValue(user[field]);
+    setEditValue(field === "username" ? clerkUser?.username || "" : phone);
   };
 
   /* =======================================================
@@ -95,8 +99,8 @@ export default function ProfileScreen() {
      SAVE EDIT
   ======================================================= */
 
-  const saveEdit = () => {
-    if (!editingField) return;
+  const saveEdit = async () => {
+    if (editingField !== "username" || !clerkUser) return;
 
     const value = editValue.trim();
 
@@ -108,23 +112,17 @@ export default function ProfileScreen() {
       return;
     }
 
-    setUser((previousUser) => ({
-      ...previousUser,
-      [editingField]: value,
-    }));
-
-    const fieldName =
-      editingField === "username"
-        ? "Username"
-        : "Phone number";
-
-    setEditingField(null);
-    setEditValue("");
-
-    Alert.alert(
-      "Updated successfully",
-      `${fieldName} has been changed successfully.`
-    );
+    try {
+      await clerkUser.update({ username: value });
+      setEditingField(null);
+      setEditValue("");
+      Alert.alert("Updated successfully", "Your username has been changed.");
+    } catch (error) {
+      Alert.alert(
+        "Update failed",
+        error instanceof Error ? error.message : "Please try again."
+      );
+    }
   };
 
   /* =======================================================
@@ -155,20 +153,17 @@ export default function ProfileScreen() {
      LOGOUT
   ======================================================= */
 
-  const handleLogout = () => {
-    setLogoutModal(false);
-
-    /*
-      ภายหลังสามารถเชื่อม Auth:
-
-      await logout();
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setLogoutModal(false);
       router.replace("/login");
-    */
-
-    Alert.alert(
-      "Logged out",
-      "Logout API จะเชื่อมในขั้นตอน Authentication"
-    );
+    } catch (error) {
+      Alert.alert(
+        "Logout failed",
+        error instanceof Error ? error.message : "Please try again."
+      );
+    }
   };
 
   return (
@@ -184,10 +179,20 @@ export default function ProfileScreen() {
 
         <View style={styles.profileHeader}>
           <View style={styles.avatarWrapper}>
-            <Image
-              source={user.avatar}
-              style={styles.avatar}
-            />
+            {clerkUser?.hasImage && clerkUser.imageUrl ? (
+              <Image
+                source={{ uri: clerkUser.imageUrl }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitial}>
+                  {(clerkUser?.firstName || clerkUser?.username || email)
+                    .charAt(0)
+                    .toUpperCase()}
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               activeOpacity={0.8}
@@ -221,7 +226,7 @@ export default function ProfileScreen() {
 
           <ProfileField
             label="Username"
-            value={user.username}
+            value={username}
             editable
             editing={editingField === "username"}
             editValue={editValue}
@@ -237,7 +242,7 @@ export default function ProfileScreen() {
 
           <ProfileField
             label="Email"
-            value={user.email}
+            value={email}
             editable={false}
             editing={false}
             editValue=""
@@ -251,16 +256,14 @@ export default function ProfileScreen() {
 
           <ProfileField
             label="Phone"
-            value={user.phone}
-            editable
-            editing={editingField === "phone"}
+            value={phone}
+            editable={false}
+            editing={false}
             editValue={editValue}
-            onStartEdit={() =>
-              startEdit("phone")
-            }
-            onChangeText={setEditValue}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
+            onStartEdit={() => {}}
+            onChangeText={() => {}}
+            onSave={() => {}}
+            onCancel={() => {}}
           />
 
         </View>
@@ -599,6 +602,23 @@ const styles = StyleSheet.create({
     borderRadius: 54,
     borderWidth: 4,
     borderColor: COLORS.white,
+  },
+
+  avatarPlaceholder: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 4,
+    borderColor: COLORS.white,
+    backgroundColor: COLORS.orangeLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  avatarInitial: {
+    fontSize: 42,
+    fontWeight: "700",
+    color: COLORS.orange,
   },
 
   editPhotoButton: {
