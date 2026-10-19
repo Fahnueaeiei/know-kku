@@ -617,3 +617,80 @@ export async function extractChecklistFromDocument(
 
   return uploadForm<NewChecklistTask>("/checklists/extract", form, getToken);
 }
+
+/* =========================================================
+   ADD EVENT TO CHECKLIST
+   เพิ่มกิจกรรมเป็นรายการในกลุ่ม "Events" (ไม่มีก็สร้างให้)
+   คืนค่า "added" | "exists"
+========================================================= */
+
+const EVENTS_GROUP_TITLE = "Events";
+
+export type EventForChecklist = {
+  title: string;
+  dueDate?: string | null; // "YYYY-MM-DD"
+  dueTime?: string | null; // "HH:mm"
+  location?: string | null;
+  url?: string | null;
+  note?: string | null;
+};
+
+export async function addEventToChecklist(
+  ev: EventForChecklist,
+  getToken?: GetToken
+): Promise<"added" | "exists"> {
+  const tasks = await fetchTasks(getToken);
+  const group = tasks.find((t) => t.title === EVENTS_GROUP_TITLE);
+
+  const newItem: NewChecklistItem = {
+    title: ev.title,
+    dueDate: ev.dueDate ?? null,
+    dueTime: ev.dueDate ? ev.dueTime ?? null : null,
+    location: ev.location ?? undefined,
+    url: ev.url ?? undefined,
+    note: ev.note ?? undefined,
+  };
+
+  // ยังไม่มีกลุ่ม → สร้างใหม่
+  if (!group) {
+    await createTask(
+      { title: EVENTS_GROUP_TITLE, items: [newItem] },
+      getToken
+    );
+    return "added";
+  }
+
+  // กันซ้ำ: url เดียวกัน หรือชื่อเดียวกัน
+  const duplicated = group.items.some(
+    (i) =>
+      (ev.url && i.url === ev.url) ||
+      i.title.trim() === ev.title.trim()
+  );
+  if (duplicated) return "exists";
+
+  // ส่งรายการเดิมกลับไปด้วย (ไม่งั้น backend จะลบทิ้ง)
+  const keepItems: NewChecklistItem[] = group.items.map((i) => ({
+    itemId: i.itemId,
+    completed: i.completed,
+    title: i.title,
+    subtitle: i.subtitle ?? undefined,
+    dueDate: i.dueDate,
+    dueTime: i.dueTime,
+    note: i.note ?? undefined,
+    url: i.url ?? undefined,
+    location: i.location ?? undefined,
+    placeId: i.placeId,
+  }));
+
+  await updateTask(
+    group.taskId,
+    {
+      title: group.title,
+      description: group.description ?? undefined,
+      items: [...keepItems, newItem],
+    },
+    getToken
+  );
+
+  return "added";
+}

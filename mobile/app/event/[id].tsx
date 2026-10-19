@@ -12,15 +12,29 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Platform,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { getEventById } from "../../api/api";
+import { getEventById, addEventToChecklist } from "../../api/api";
 import { fetchKkuEventById } from "../../api/events";
 import { COLORS } from "../../constants/appTheme";
+
+/* =========================================================
+   NOTIFY
+   Alert.alert ไม่ทำงานบนเว็บ จึงใช้ window.alert แทนเมื่อรันบน web
+========================================================= */
+
+const notify = (title: string, message: string) => {
+  if (Platform.OS === "web") {
+    window.alert(`${title}\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 /* =========================================================
    TYPES
@@ -35,6 +49,7 @@ type EventDetail = {
   location?: string | null;
   eventDate?: string | null;
   dateLabel?: string | null; // กิจกรรมของ มข. ที่มาเป็นข้อความช่วงวันที่สำเร็จรูป
+  startDate?: string | null; // "YYYY-MM-DD" ใช้เป็น due date ใน Checklist
   timeLabel?: string | null;
   venueAddress?: string | null;
   phone?: string | null;
@@ -65,6 +80,7 @@ export default function EventDetailScreen() {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
 
   /* =======================================================
      LOAD EVENT
@@ -117,6 +133,7 @@ export default function EventDetailScreen() {
             description: full.description ?? null,
             location: full.venue ?? (venue || null),
             dateLabel: full.dateLabel || dateLabel || null,
+            startDate: full.startDate ?? null,
             timeLabel: full.timeLabel ?? null,
             venueAddress: full.venueAddress ?? null,
             phone: full.phone ?? null,
@@ -229,13 +246,41 @@ export default function EventDetailScreen() {
      ADD TO CHECKLIST
   ======================================================= */
 
-  const addToChecklist = () => {
-    if (!event) return;
+  const addToChecklist = async () => {
+    if (!event || adding) return;
 
-    Alert.alert(
-      "Added to Checklist",
-      `"${event.title}" has been added to your checklist.`
-    );
+    // แยกวันที่/เวลาเป็นรูปแบบที่เช็คลิสต์ใช้ (YYYY-MM-DD / HH:mm)
+    const dueDate = event.eventDate
+      ? event.eventDate.slice(0, 10)
+      : event.startDate ?? null;
+    const dueTime = event.timeLabel
+      ? event.timeLabel.split("–")[0].trim() // "10:00 – 19:00" → "10:00"
+      : null;
+
+    try {
+      setAdding(true);
+
+      const result = await addEventToChecklist({
+        title: event.title,
+        dueDate,
+        dueTime,
+        location: event.location,
+        url: event.externalLink,
+        note: event.dateLabel ? `Date: ${event.dateLabel}` : undefined,
+      });
+
+      notify(
+        result === "added" ? "Added to Checklist" : "Already in Checklist",
+        result === "added"
+          ? `"${event.title}" has been added to your checklist.`
+          : "This event is already in your checklist."
+      );
+    } catch (err) {
+      console.error("Failed to add to checklist:", err);
+      notify("Error", "Unable to add to checklist. Please try again.");
+    } finally {
+      setAdding(false);
+    }
   };
 
   /* =======================================================
@@ -540,16 +585,23 @@ export default function EventDetailScreen() {
             <View style={styles.actionRow}>
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={styles.checklistButton}
+                style={[styles.checklistButton, adding && { opacity: 0.6 }]}
                 onPress={addToChecklist}
+                disabled={adding}
               >
-                <Ionicons
-                  name="add-circle-outline"
-                  size={18}
-                  color="#FFFFFF"
-                />
+                {adding ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                )}
 
-                <Text style={styles.checklistButtonText}>Add to Checklist</Text>
+                <Text style={styles.checklistButtonText}>
+                  {adding ? "Adding..." : "Add to Checklist"}
+                </Text>
               </TouchableOpacity>
 
               {!!event.externalLink && (

@@ -2,6 +2,8 @@
 // ดึงกิจกรรมจาก kku.ac.th ผ่าน REST API ของปลั๊กอิน The Events Calendar
 // (หน้า /th/events/ แสดงแค่ชื่อ/วันที่/สถานที่/เนื้อหาย่อ แต่ API ให้ข้อมูลเต็มของแต่ละกิจกรรม)
 
+import { useNavigationBuilder } from "expo-router/build/react-navigation";
+
 export const KKU_EVENTS_PAGE_URL = 'https://www.kku.ac.th/th/events/';
 
 const API_BASE = 'https://www.kku.ac.th/wp-json/tribe/events/v1/events';
@@ -16,6 +18,7 @@ export type KkuEvent = {
   url: string; // หน้ากิจกรรมบน kku.ac.th
 
   dateLabel: string; // เช่น "21–22 Nov 2026"
+  startDate?: string;
   timeLabel?: string; // เช่น "10:00 – 19:00" (ไม่มีถ้าเป็นกิจกรรมทั้งวัน)
 
   venue?: string;
@@ -176,6 +179,7 @@ function mapEvent(raw: any): KkuEvent {
     url: raw.url,
 
     dateLabel: formatDateRange(raw.start_date, raw.end_date),
+    startDate: raw.start_date ? String(raw.start_date).slice(0, 10) : undefined,
     timeLabel: raw.all_day ? undefined : formatTimeRange(raw.start_date, raw.end_date),
 
     venue,
